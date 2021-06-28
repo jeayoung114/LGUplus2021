@@ -1,2 +1,16 @@
 # LGUplus2021
-Lab on Recommender Systems
+Framework on Recommender Systems
+
+## Available models
+- For explicit feedback
+  - UserKNN
+  - ItemKNN
+  - SVD
+  - MF
+- For implicit feedback
+  - UserKNN
+  - ItemKNN
+  - SVD
+  - LogisticMF
+  - WMF w/ ALS
+  - WMF w/ GD
