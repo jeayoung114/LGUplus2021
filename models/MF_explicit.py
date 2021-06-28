@@ -66,7 +66,9 @@ class MF_explicit():
             # Update the parameters
             self.optimizer.step()
 
-            print("epoch %d, loss: %f"%(epoch, loss))
+            if epoch % 10 == 0:
+                print("epoch %d, loss: %f"%(epoch, loss))
+
 
         with torch.no_grad():
             self.reconstructed = self.model.forward().cpu().numpy()
