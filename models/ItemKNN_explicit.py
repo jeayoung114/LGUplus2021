@@ -13,6 +13,7 @@ class ItemKNN_explicit():
             self.train[i, np.where(row < 0.5)[0]] = np.nan
         
         self.item_mean = np.nanmean(self.train, axis=0)
+        self.item_mean[np.isnan(self.item_mean)] = 0.0
 
         # 기존 rating에서 평균을 뺌
         self.train = self.train - self.item_mean[None,:]

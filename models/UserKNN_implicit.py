@@ -9,7 +9,7 @@ import scipy.sparse as sp
 from sklearn.metrics import jaccard_score
 from numpy import inf
 
-# gamma 추가 안 함 ###############################################
+
 class UserKNN_implicit():
     def __init__(self, train, valid, top_k, sim = 'cos', inverse_freq=False):
         self.train = train
