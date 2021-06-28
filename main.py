@@ -94,19 +94,19 @@ from models.SVD_implicit import SVD_implicit
 from models.WMF_GD_implicit import WMF_GD_implicit
 from models.WMF_ALS_implicit import WMF_ALS_implicit
 from models.LogisticMF_implicit import LogisticMF_implicit
-from models.BPR_implicit import BPR_implicit
+# from models.BPR_implicit import BPR_implicit
 
 """
 dataset loading
 """
 dataset = "naver_movie_dataset_small.csv"
-train_data, valid_data, test_data, idx2title = load_data(dataset, implicit=False)
+train_data, valid_data, test_data, idx2title = load_data(dataset, implicit=True)
 
 """
 model 학습
 """
 userknn = UserKNN_implicit(train=train_data, valid=valid_data, top_k=10, sim = 'cos', inverse_freq=False)
-itemknn = ItemKNN_implicit(train=train_data, valid=valid_data, top_k=50, sim = 'cos', inverse_freq=False)
+itemknn = ItemKNN_implicit(train=train_data, valid=valid_data, top_k=10, sim = 'cos', inverse_freq=False)
 svd = SVD_implicit(train_data, valid_data, rank=30)
 wmf_gd = WMF_GD_implicit(train=train_data, valid=valid_data, n_features=20, learning_rate=1e-2, num_epochs = 100)
 wmf_als = WMF_ALS_implicit(train=train_data, valid=valid_data, n_features=20, num_epochs = 10)
