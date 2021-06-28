@@ -194,8 +194,8 @@ def eval_explicit(model, train_data, test_data):
         pred_matrix = np.zeros((num_users, num_items))
 
         for item_id in range(len(train_data.T)):
-            train_by_item = train_data[item_id]
-            missing_user_ids = np.where(train_by_item == 0)[0] # missing user_id
+            train_by_item = test_data[:,item_id]
+            missing_user_ids = np.where(train_by_item >= 0.5)[0]
 
             pred_u_score = model.predict(item_id, missing_user_ids)
             pred_matrix[missing_user_ids, item_id] = pred_u_score
