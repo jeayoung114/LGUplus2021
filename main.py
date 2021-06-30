@@ -1,23 +1,14 @@
 # 기본 패키지 import
-import pandas as pd
 import numpy as np
 from utils import load_data
 from utils import eval_implicit
-from scipy import stats
 from utils import eval_explicit
 import warnings
 import random
-import math
-import os
-import time
-import datetime
-import os
-import copy
 from os.path import join
 import warnings
 
 import torch
-import torch.nn as nn
 import numpy as np
 import random
 
@@ -68,11 +59,6 @@ mf.fit()
 """
 model 평가
 """
-print(userknn.predict(user_id=1, item_ids=[3, 2, 1]))
-print(itemknn.predict(item_id=1, user_ids=[3, 2, 1]))
-print(svd.predict(user_id=1, item_ids=[3, 2, 1]))
-print(mf.predict(user_id=1, item_ids=[3, 2, 1]))
-
 userknn_rmse = eval_explicit(userknn, train_data+valid_data, test_data)
 itemknn_rmse = eval_explicit(itemknn, train_data+valid_data, test_data)
 svd_rmse = eval_explicit(svd, train_data+valid_data, test_data)
@@ -94,7 +80,6 @@ from models.SVD_implicit import SVD_implicit
 from models.WMF_GD_implicit import WMF_GD_implicit
 from models.WMF_ALS_implicit import WMF_ALS_implicit
 from models.LogisticMF_implicit import LogisticMF_implicit
-# from models.BPR_implicit import BPR_implicit
 
 """
 dataset loading
@@ -111,7 +96,6 @@ svd = SVD_implicit(train_data, valid_data, rank=30)
 wmf_gd = WMF_GD_implicit(train=train_data, valid=valid_data, n_features=20, learning_rate=1e-2, num_epochs = 100)
 wmf_als = WMF_ALS_implicit(train=train_data, valid=valid_data, n_features=20, num_epochs = 10)
 logistic_mf = LogisticMF_implicit(train=train_data, valid=valid_data, alpha=2, n_features=20, learning_rate=1e-2, num_epochs = 100)
-# bpr = BPR_implicit(train=train_data, valid=valid_data, n_features=20, learning_rate=1e-2, num_epochs = 100)
 
 userknn.fit()
 itemknn.fit()
@@ -119,19 +103,10 @@ svd.fit()
 wmf_gd.fit()
 wmf_als.fit()
 logistic_mf.fit()
-# bpr.fit()
 
 """
 model 평가
 """
-print(userknn.predict(user_id=1, item_ids=[3, 2, 1]))
-print(itemknn.predict(item_id=1, user_ids=[3, 2, 1]))
-print(svd.predict(user_id=1, item_ids=[3, 2, 1]))
-print(wmf_gd.predict(user_id=1, item_ids=[3, 2, 1]))
-print(wmf_als.predict(user_id=1, item_ids=[3, 2, 1]))
-print(logistic_mf.predict(user_id=1, item_ids=[3, 2, 1]))
-# print(bpr.predict(user_id=1, item_ids=[3, 2, 1]))
-
 top_k = 50
 userknn_prec, userknn_recall, userknn_ndcg = eval_implicit(userknn, train_data+valid_data, test_data, top_k)
 itemknn_prec, itemknn_recall, itemknn_ndcg = eval_implicit(itemknn, train_data+valid_data, test_data, top_k)
@@ -147,4 +122,3 @@ print("SVD: %f, %f, %f"%(svd_prec, svd_recall, svd_ndcg))
 print("WMF_GD: %f, %f, %f"%(wmf_gd_prec, wmf_gd_recall, wmf_gd_ndcg))
 print("WMG_ALS: %f, %f, %f"%(wmf_als_prec, wmf_als_recall, wmf_als_ndcg))
 print("LogisticMF: %f, %f, %f"%(logistic_mf_prec, logistic_mf_recall, logistic_mf_ndcg))
-
