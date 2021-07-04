@@ -80,6 +80,7 @@ from models.SVD_implicit import SVD_implicit
 from models.WMF_GD_implicit import WMF_GD_implicit
 from models.WMF_ALS_implicit import WMF_ALS_implicit
 from models.LogisticMF_implicit import LogisticMF_implicit
+from models.SLIM_implicit import SLIM_implicit
 
 """
 dataset loading
@@ -96,6 +97,7 @@ svd = SVD_implicit(train_data, valid_data, rank=30)
 wmf_gd = WMF_GD_implicit(train=train_data, valid=valid_data, n_features=20, learning_rate=1e-2, num_epochs = 100)
 wmf_als = WMF_ALS_implicit(train=train_data, valid=valid_data, n_features=20, num_epochs = 10)
 logistic_mf = LogisticMF_implicit(train=train_data, valid=valid_data, alpha=2, n_features=20, learning_rate=1e-2, num_epochs = 100)
+slim = SLIM_implicit(train=train_data, valid=valid_data, l1_reg=3e-4, l2_reg=1e-4, num_epochs=1)
 
 userknn.fit()
 itemknn.fit()
@@ -103,6 +105,7 @@ svd.fit()
 wmf_gd.fit()
 wmf_als.fit()
 logistic_mf.fit()
+slim.fit()
 
 """
 model 평가
@@ -114,6 +117,7 @@ svd_prec, svd_recall, svd_ndcg = eval_implicit(svd, train_data+valid_data, test_
 wmf_gd_prec, wmf_gd_recall, wmf_gd_ndcg = eval_implicit(wmf_gd, train_data+valid_data, test_data, top_k)
 wmf_als_prec, wmf_als_recall, wmf_als_ndcg = eval_implicit(wmf_als, train_data+valid_data, test_data, top_k)
 logistic_mf_prec, logistic_mf_recall, logistic_mf_ndcg = eval_implicit(logistic_mf, train_data+valid_data, test_data, top_k)
+slim_prec, slim_recall, slim_ndcg = eval_implicit(slim, train_data+valid_data, test_data, top_k)
 
 print("Precision, Recall, NDCG@%s 결과"%(top_k))
 print("UserKNN: %f, %f, %f"%(userknn_prec, userknn_recall, userknn_ndcg))
@@ -122,3 +126,4 @@ print("SVD: %f, %f, %f"%(svd_prec, svd_recall, svd_ndcg))
 print("WMF_GD: %f, %f, %f"%(wmf_gd_prec, wmf_gd_recall, wmf_gd_ndcg))
 print("WMG_ALS: %f, %f, %f"%(wmf_als_prec, wmf_als_recall, wmf_als_ndcg))
 print("LogisticMF: %f, %f, %f"%(logistic_mf_prec, logistic_mf_recall, logistic_mf_ndcg))
+print("SLIM: %f, %f, %f"%(slim_prec, slim_recall, slim_ndcg))
