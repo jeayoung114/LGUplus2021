@@ -3,10 +3,11 @@ SLIM: Sparse Linear Methods for Top-N Recommender Systems,
 Xia Ning et al.,
 ICDM 2011.
 """
-from tqdm import tqdm
 import numpy as np
 import scipy.sparse as sp
 from sklearn.linear_model import ElasticNet
+from tqdm import tqdm
+from multiprocessing import Pool
 
 class SLIM_implicit():
     def __init__(self, train, valid, l1_reg=1e-3, l2_reg=1e-3, num_epochs=10, topk=100):
@@ -51,37 +52,27 @@ class SLIM_implicit():
             current_item_data_backup = train_matrix.data[start_pos: end_pos].copy()
             train_matrix.data[start_pos: end_pos] = 0.0
 
+            # train SLIM
             self.slim.fit(train_matrix, y)
-
-            # Select topK values
-            # Sorting is done in three steps. Faster then plain np.argsort for higher number of items
-            # - Partition the data to extract the set of relevant items
-            # - Sort only the relevant items
-            # - Get the original item index
 
             nonzero_model_coef_index = self.slim.sparse_coef_.indices
             nonzero_model_coef_value = self.slim.sparse_coef_.data
 
-            local_topK = min(len(nonzero_model_coef_value)-1, self.topk)
-
-            relevant_items_partition = (-nonzero_model_coef_value).argpartition(local_topK)[0:local_topK]
-            relevant_items_partition_sorting = np.argsort(-nonzero_model_coef_value[relevant_items_partition])
-            ranking = relevant_items_partition[relevant_items_partition_sorting]
-
-            for index in ranking:
+            for row_index, value in zip(nonzero_model_coef_index, nonzero_model_coef_value):
                 if numCells == len(rows):
                     rows = np.concatenate((rows, np.zeros(num_blocks, dtype=np.int32)))
                     cols = np.concatenate((cols, np.zeros(num_blocks, dtype=np.int32)))
                     values = np.concatenate((values, np.zeros(num_blocks, dtype=np.float32)))
 
-                rows[numCells] = nonzero_model_coef_index[index]
+                rows[numCells] = row_index
                 cols[numCells] = item
-                values[numCells] = nonzero_model_coef_value[index]
+                values[numCells] = value
 
                 numCells += 1
             
             train_matrix.data[start_pos:end_pos] = current_item_data_backup
         
+        # make sparse W matrix
         self.W_sparse = sp.csr_matrix((values[:numCells], (rows[:numCells], cols[:numCells])), \
                                     shape=(self.num_items, self.num_items), dtype=np.float32)
 
