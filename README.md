@@ -2,7 +2,7 @@
 Framework on Recommender Systems
 
 ## Available models
-> For explicit feedback (e)
+> For explicit feedback (e) <br>
 > For implicit feedback (i)
 ---------------------------------------
 
