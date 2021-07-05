@@ -2,21 +2,26 @@
 Framework on Recommender Systems
 
 ## Available models
-- For explicit feedback
-  - UserKNN
-  - ItemKNN
-  - SVD
-  - MF
-- For implicit feedback
-  - UserKNN
-  - ItemKNN
-  - SVD
-  - LogisticMF
-  - WMF w/ ALS
-  - WMF w/ GD
-  - SLIM
-  - EASE
-  - AutoRec
-  - DAE
-  - CDAE
-  - MultVAE
+* For explicit feedback (e)
+* For implicit feedback (i)
+
+- Memory-based collaborative filtering
+  - UserKNN (e, i)
+  - ItemKNN (e, i)
+
+- Model-based collaborative filtering
+  - SVD (e, i)
+  - MF (e)
+  - LogisticMF (i)
+  - WMF w/ ALS (i)
+  - WMF w/ GD (i)
+
+- Linear item-item collaborative filtering
+  - SLIM (i)
+  - EASE (i)
+
+- Neural item-item collaborative filtering
+  - AutoRec (i)
+  - DAE (i)
+  - CDAE (i)
+  - MultVAE (i)
