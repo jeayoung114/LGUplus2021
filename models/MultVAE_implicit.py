@@ -12,40 +12,38 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from base import BaseRecommender
-from dataloader.DataBatcher import DataBatcher
+class MultVAE_implicit(torch.nn.Module):
+    def __init__(self, train, valid, num_epochs, hidden_dim, learning_rate, reg_lambda, dropout, device, activation="tanh"):
+        super().__init__()
+        self.train_mat = train
+        self.valid_mat = valid
+        self.num_users = train.shape[0]
+        self.num_items = train.shape[1]
 
-class MultVAE(BaseRecommender):
-    def __init__(self, dataset, model_conf, device):
-        super(MultVAE, self).__init__(dataset, model_conf)
-        self.dataset = dataset
-        self.num_users = dataset.num_users
-        self.num_items = dataset.num_items
+        self.num_epochs = num_epochs
+        self.hidden_dim = hidden_dim
+        self.learning_rate = learning_rate
+        self.reg_lambda = reg_lambda
+        self.activation = activation
 
-        if isinstance(model_conf['enc_dims'], str):
-            model_conf['enc_dims'] = eval(model_conf['enc_dims'])
-        self.enc_dims = [self.num_items] + model_conf['enc_dims']
+        self.enc_dims = [self.num_items] + [self.hidden_dim]
         self.dec_dims = self.enc_dims[::-1]
         self.dims = self.enc_dims + self.dec_dims[1:]
 
-        self.total_anneal_steps = model_conf['total_anneal_steps']
-        self.anneal_cap = model_conf['anneal_cap']
+        self.total_anneal_steps = 200000
+        self.anneal_cap = 0.2
 
-        self.dropout = model_conf['dropout']
-        self.reg = model_conf['reg']
-
-        self.batch_size = model_conf['batch_size']
-        self.test_batch_size = model_conf['test_batch_size']
-
-        self.lr = model_conf['learning_rate']
+        self.dropout = dropout
+        self.reg = self.reg_lambda
+        self.lr = self.learning_rate
 
         self.eps = 1e-6
         self.anneal = 0.
         self.update_count = 0
-
         self.device = device
 
         self.build_graph()
+
 
     def build_graph(self):
         self.encoder = nn.ModuleList()
@@ -67,6 +65,7 @@ class MultVAE(BaseRecommender):
 
         # Send model to device (cpu or gpu)
         self.to(self.device)
+
 
     def forward(self, x):
         # encoder
@@ -92,90 +91,30 @@ class MultVAE(BaseRecommender):
         else:
             return output
 
-    def train_model(self, dataset, evaluator, early_stop, neptune, logger, config, neptune_prefix='', seed=2020):
-        exp_config = config['Experiment']
 
-        num_epochs = exp_config['num_epochs']
-        print_step = exp_config['print_step']
-        test_step = exp_config['test_step']
-        test_from = exp_config['test_from']
-        verbose = exp_config['verbose']
-        log_dir = logger.log_dir
+    def fit(self):
+        train_matrix = torch.FloatTensor(self.train_mat).to(self.device)
+        batch_idx = np.arange(self.num_users)
+        batch_idx = torch.LongTensor(batch_idx).to(self.device)
 
-        train_matrix = dataset.train_matrix
-        train_users = train_matrix.shape[0]
-        train_data_perm = np.arange(train_users)
-
-        # for epoch
-        start = time()
-        for epoch in range(1, num_epochs + 1):
+        for epoch in range(0, self.num_epochs):
             self.train()
 
-            epoch_loss = 0.0
-            batch_loader = DataBatcher(train_data_perm, batch_size=self.batch_size, drop_remain=False, shuffle=False)
-            num_batches = len(batch_loader)
-
-            # ======================== Train
-            epoch_train_start = time()
-            for b, batch_idx in enumerate(batch_loader):
-                batch_matrix = torch.FloatTensor(train_matrix[batch_idx].toarray()).to(self.device)
-
-                if self.total_anneal_steps > 0:
-                    self.anneal = min(self.anneal_cap, 1. * self.update_count / self.total_anneal_steps)
-                else:
-                    self.anneal = self.anneal_cap
-
-                batch_loss = self.train_model_per_batch(batch_matrix)
-                epoch_loss += batch_loss
-
-                if verbose and (b + 1) % verbose == 0:
-                    print('batch %d / %d loss = %.4f' % (b + 1, num_batches, batch_loss))
-            epoch_train_time = time() - epoch_train_start
-
-            epoch_info = ['epoch=%3d' % epoch, 'loss=%.3f' % epoch_loss, 'train time=%.2f' % epoch_train_time]
-
-            if neptune is not None:
-                neptune.log_metric(neptune_prefix+'Loss', epoch_loss, epoch=epoch)
-
-            # ======================== Evaluate
-            if (epoch >= test_from and epoch % test_step == 0) or epoch == num_epochs:
-                # evaluate model
-                epoch_eval_start = time()
-
-                valid_score = evaluator.evaluate(self)
-                valid_score_str = ['%s=%.4f' % (k, valid_score[k]) for k in valid_score]
-
-                updated, should_stop = early_stop.step(valid_score, epoch)
-
-                if should_stop:
-                    logger.info('Early stop triggered.')
-                    break
-                elif updated:
-                    torch.save(self.state_dict(), os.path.join(log_dir, 'best_model.p'))
-
-                epoch_eval_time = time() - epoch_eval_start
-                epoch_time = epoch_train_time + epoch_eval_time
-
-                epoch_info += ['epoch time=%.2f (%.2f + %.2f)' % (epoch_time, epoch_train_time, epoch_eval_time)]
-                epoch_info += valid_score_str
-
-                if neptune is not None:
-                    valid_neptune_dict = {neptune_prefix + k: v for k,v in valid_score.items()}
-                    neptune.log_metric_from_dict(valid_neptune_dict, epoch=epoch)
+            if self.total_anneal_steps > 0:
+                self.anneal = min(self.anneal_cap, 1. * self.update_count / self.total_anneal_steps)
             else:
-                epoch_info += ['epoch time=%.2f (%.2f + 0.00)' % (epoch_train_time, epoch_train_time)]
+                self.anneal = self.anneal_cap
 
-            if epoch % print_step == 0:
-                logger.info(', '.join(epoch_info))
+            loss = self.train_model_per_batch(train_matrix)
+            print('epoch %d  loss = %.4f' % (epoch + 1, loss))
 
-            if torch.isnan(epoch_loss):
-                logger.info('Loss NAN. Train finish.')
-                early_stop.best_score = {k: -1.0 for k in valid_score}
+            if torch.isnan(loss):
+                print('Loss NAN. Train finish.')
                 break
 
-        total_train_time = time() - start
-
-        return early_stop.best_score, total_train_time
+        self.eval()
+        with torch.no_grad():
+            self.reconstructed = self.forward(train_matrix).detach().cpu().numpy()
 
 
     def train_model_per_batch(self, batch_matrix):
@@ -200,21 +139,6 @@ class MultVAE(BaseRecommender):
 
         return loss
 
-    def predict(self, user_ids, eval_pos_matrix, eval_items=None):
-        batch_eval_pos = eval_pos_matrix[user_ids]
-        
-        with torch.no_grad():
-            eval_matrix = torch.FloatTensor(batch_eval_pos.toarray()).to(self.device)
-            eval_output = self.forward(eval_matrix).detach().cpu().numpy()
-            
-            if eval_items is not None:
-                eval_output[np.logical_not(eval_items)]=float('-inf')
-            else:
-                eval_output[batch_eval_pos.nonzero()] = float('-inf')
 
-            return eval_output
-
-    def restore(self, log_dir):
-        with open(os.path.join(log_dir, 'best_model.p'), 'rb') as f:
-            state_dict = torch.load(f)
-        self.load_state_dict(state_dict)
+    def predict(self, user_id, item_ids):
+        return self.reconstructed[user_id, item_ids]
