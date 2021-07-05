@@ -14,3 +14,9 @@ Framework on Recommender Systems
   - LogisticMF
   - WMF w/ ALS
   - WMF w/ GD
+  - SLIM
+  - EASE
+  - AutoRec
+  - DAE
+  - CDAE
+  - MultVAE
