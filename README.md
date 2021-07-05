@@ -19,7 +19,7 @@ Framework on Recommender Systems
 
 - Linear item-item collaborative filtering
   - SLIM (i)
-  - EASE (i)
+  - EASE<sup>R</sup> (i)
 
 - Neural item-item collaborative filtering
   - AutoRec (i)
