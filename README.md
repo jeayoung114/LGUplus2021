@@ -4,7 +4,7 @@ Framework on Recommender Systems
 ## Available models
 > For explicit feedback (e) <br>
 > For implicit feedback (i)
----------------------------------------
+<!-- --------------------------------------- -->
 
 - Memory-based collaborative filtering
   - UserKNN (e, i)
