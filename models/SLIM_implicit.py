@@ -3,13 +3,13 @@ SLIM: Sparse Linear Methods for Top-N Recommender Systems,
 Xia Ning et al.,
 ICDM 2011.
 """
-
+from tqdm import tqdm
 import numpy as np
 import scipy.sparse as sp
 from sklearn.linear_model import ElasticNet
 
 class SLIM_implicit():
-    def __init__(self, train, valid, l1_reg=1e-2, l2_reg=1e-2, num_epochs=500, topk=100):
+    def __init__(self, train, valid, l1_reg=1e-3, l2_reg=1e-3, num_epochs=10, topk=100):
         self.train = train
         self.valid = valid
         self.num_users = train.shape[0]
@@ -31,7 +31,7 @@ class SLIM_implicit():
 
 
     def fit(self):
-        train_matrix = sp.csr_matrix(self.train)
+        train_matrix = sp.csc_matrix(self.train)
         num_blocks = 10000000
         numCells = 0
 
@@ -39,7 +39,8 @@ class SLIM_implicit():
         cols = np.zeros(num_blocks, dtype=np.int32)
         values = np.zeros(num_blocks, dtype=np.float32)
 
-        for item in range(self.num_items):
+        tqdm_iterator = tqdm(range(self.num_items), desc='# items covered', total=self.num_items)
+        for item in tqdm_iterator:
             # j-th column of R (ground-truth)
             y = train_matrix[:, item].toarray()
 
