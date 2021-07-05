@@ -21,7 +21,7 @@ class SLIM_implicit():
         l1_ratio = l1_reg / alpha
         self.slim = ElasticNet(alpha=alpha,
                                 l1_ratio=l1_ratio,
-                                positive=True,
+                                positive=True, # weight matrix has non-negative values
                                 fit_intercept=False,
                                 copy_X=False,
                                 precompute=True,
@@ -68,15 +68,15 @@ class SLIM_implicit():
             relevant_items_partition_sorting = np.argsort(-nonzero_model_coef_value[relevant_items_partition])
             ranking = relevant_items_partition[relevant_items_partition_sorting]
 
-            for index in range(len(ranking)):
+            for index in ranking:
                 if numCells == len(rows):
                     rows = np.concatenate((rows, np.zeros(num_blocks, dtype=np.int32)))
                     cols = np.concatenate((cols, np.zeros(num_blocks, dtype=np.int32)))
                     values = np.concatenate((values, np.zeros(num_blocks, dtype=np.float32)))
 
-                rows[numCells] = nonzero_model_coef_index[ranking[index]]
+                rows[numCells] = nonzero_model_coef_index[index]
                 cols[numCells] = item
-                values[numCells] = nonzero_model_coef_value[ranking[index]]
+                values[numCells] = nonzero_model_coef_value[index]
 
                 numCells += 1
             

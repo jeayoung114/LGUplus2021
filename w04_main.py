@@ -33,6 +33,7 @@ seed_everything(seed)
 # from models.DAE_implicit import DAE_implicit
 # from models.CDAE_implicit import CDAE_implicit
 
+# from models.SLIM_implicit import SLIM_implicit
 # from models.EASE_implicit import EASE_implicit
 from models.MultVAE_implicit import MultVAE_implicit
 
@@ -48,6 +49,12 @@ top_k = 50
 model 학습
 """
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# slim = SLIM_implicit(train=train_data, valid=valid_data, l1_reg=1e-3, l2_reg=1e-3, num_epochs=10)
+# slim.fit()
+# slim_prec, slim_recall, slim_ndcg = eval_implicit(slim, train_data+valid_data, test_data, top_k)
+# print("SLIM: %f, %f, %f"%(slim_prec, slim_recall, slim_ndcg))
+
 # ease = EASE_implicit(train=train_data, valid=valid_data, reg_lambda=100)
 # ease.fit()
 # ease_prec, ease_recall, ease_ndcg = eval_implicit(ease, train_data, test_data, top_k)
@@ -69,7 +76,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # cdae.fit()
 # cdae_prec, cdae_recall, cdae_ndcg = eval_implicit(cdae, train_data, test_data, top_k)
 # print("CDAE: %f, %f, %f"%(cdae_prec, cdae_recall, cdae_ndcg))
-
 
 multvae = MultVAE_implicit(train=train_data, valid=valid_data, hidden_dim=100, dropout=0.1, num_epochs=100, learning_rate=0.005, reg_lambda=0.001, device = device, activation= 'tanh')
 multvae.fit()
