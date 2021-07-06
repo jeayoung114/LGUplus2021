@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class UAE_implicit(torch.nn.Module):
-    def __init__(self, train, valid, num_epochs, hidden_dim, learning_rate, reg_lambda, device, activation="tanh"):
+    def __init__(self, train, valid, num_epochs, hidden_dim, learning_rate, reg_lambda, device, activation="tanh", loss="CE"):
         super().__init__()
         self.train_mat = train
         self.valid_mat = valid
@@ -20,6 +20,7 @@ class UAE_implicit(torch.nn.Module):
         self.learning_rate = learning_rate
         self.reg_lambda = reg_lambda
         self.activation = activation
+        self.loss_function = loss
 
         self.device = device
 
@@ -78,10 +79,10 @@ class UAE_implicit(torch.nn.Module):
         output = self.forward(batch_matrix)
 
         # loss
-        # if self.loss == 'mse':
-        #     loss = F.mse_loss(output, batch_matrix, reduction='none').sum(1).mean()
-        # else:
-        loss = F.binary_cross_entropy(output, batch_matrix, reduction='none').sum(1).mean()
+        if self.loss_function == 'MSE':
+            loss = F.mse_loss(output, batch_matrix, reduction='none').sum(1).mean()
+        else:
+            loss = F.binary_cross_entropy(output, batch_matrix, reduction='none').sum(1).mean()
 
         # backward
         loss.backward()
