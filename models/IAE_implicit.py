@@ -72,18 +72,18 @@ class IAE_implicit(torch.nn.Module):
             self.reconstructed = self.reconstructed.T
             
 
-    def train_model_per_batch(self, batch_matrix):
+    def train_model_per_batch(self, train_matrix):
         # zero grad
         self.optimizer.zero_grad()
 
         # model forwrad
-        output = self.forward(batch_matrix)
+        output = self.forward(train_matrix)
 
         # loss
         if self.loss_function == 'MSE':
-            loss = F.mse_loss(output, batch_matrix, reduction='none').sum(1).mean()
+            loss = F.mse_loss(output, train_matrix, reduction='none').sum(1).mean()
         else:
-            loss = F.binary_cross_entropy(output, batch_matrix, reduction='none').sum(1).mean()
+            loss = F.binary_cross_entropy(output, train_matrix, reduction='none').sum(1).mean()
 
         # backward
         loss.backward()
@@ -96,19 +96,3 @@ class IAE_implicit(torch.nn.Module):
 
     def predict(self, user_id, item_ids):
         return self.reconstructed[user_id, item_ids]
-
-
-    # def predict(self, user_ids, eval_pos_matrix, eval_items=None):
-    #     batch_eval_pos = eval_pos_matrix[user_ids]
-    #     # eval_output = np.zeros(batch_eval_pos.shape, dtype=np.float32)
-    #     with torch.no_grad():
-    #         eval_matrix = torch.FloatTensor(batch_eval_pos.toarray()).to(self.device)
-    #         eval_output = self.forward(eval_matrix).detach().cpu().numpy()
-
-    #         if eval_items is not None:
-    #             eval_output[np.logical_not(eval_items)]=float('-inf')
-    #         else:
-    #             eval_output[batch_eval_pos.nonzero()] = float('-inf')
-
-    #         return eval_output
-
