@@ -28,7 +28,7 @@ class DAE_implicit(torch.nn.Module):
 
 
     def build_graph(self):
-        # Variable
+        # W, W'와 b, b'만들기
         self.enc_w = nn.Parameter(torch.ones(self.num_items, self.hidden_dim))
         self.enc_b = nn.Parameter(torch.ones(self.hidden_dim))
         nn.init.normal_(self.enc_w, 0, 0.01)
@@ -39,15 +39,18 @@ class DAE_implicit(torch.nn.Module):
         nn.init.normal_(self.dec_w, 0, 0.01)
         nn.init.normal_(self.dec_b, 0, 0.01)
 
-        # optimizer
+        # 최적화 방법 설정
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.reg_lambda)
 
-        # Send model to device (cpu or gpu)
+        # 모델을 device로 보냄
         self.to(self.device)
 
-    def forward(self, x):        
+
+    def forward(self, x):     
+        # 입력의 일부를 제거
         denoised_x = F.dropout(x, self.dropout, training=self.training)
 
+        # encoder 과정
         if self.activation == 'None':
             h = denoised_x @ self.enc_w + self.enc_b
         elif self.activation == 'tanh':
@@ -55,6 +58,7 @@ class DAE_implicit(torch.nn.Module):
         else:
             h = torch.sigmoid(denoised_x @ self.enc_w + self.enc_b)
 
+        # dencoder 과정
         output = torch.sigmoid(h @ self.dec_w + self.dec_b)
         return output
 
@@ -77,20 +81,23 @@ class DAE_implicit(torch.nn.Module):
             self.reconstructed = self.forward(train_matrix).detach().cpu().numpy()
 
 
-    def train_model_per_batch(self, batch_matrix):
-        # zero grad
+    def train_model_per_batch(self, train_matrix):
+        # grad 초기화
         self.optimizer.zero_grad()
 
-        # model forwrad
-        output = self.forward(batch_matrix)
+        # 모델 forwrad
+        output = self.forward(train_matrix)
 
-        # loss
-        loss = F.binary_cross_entropy(output, batch_matrix, reduction='none').sum(1).mean()
+        # loss 구함
+        if self.loss_function == 'MSE':
+            loss = F.mse_loss(output, train_matrix, reduction='none').sum(1).mean()
+        else:
+            loss = F.binary_cross_entropy(output, train_matrix, reduction='none').sum(1).mean()
 
-        # backward
+        # 미분
         loss.backward()
 
-        # step
+        # 최적화
         self.optimizer.step()
 
         return loss
