@@ -22,7 +22,8 @@ Framework on Recommender Systems
   - EASE<sup>R</sup> (i)
 
 - Neural item-item collaborative filtering
-  - AutoRec (i)
+  - U-AutoRec (i)
+  - I-AutoRec (i)
   - DAE (i)
   - CDAE (i)
   - MultVAE (i)
