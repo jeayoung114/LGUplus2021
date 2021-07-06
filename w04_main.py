@@ -29,7 +29,8 @@ seed_everything(seed)
 #################################################################
 #   Implicit feedback 실습
 #################################################################
-# from models.AE_implicit import AE_implicit
+# from models.IAE_implicit import IAE_implicit
+# from models.UAE_implicit import UAE_implicit
 # from models.DAE_implicit import DAE_implicit
 # from models.CDAE_implicit import CDAE_implicit
 
@@ -60,10 +61,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # ease_prec, ease_recall, ease_ndcg = eval_implicit(ease, train_data, test_data, top_k)
 # print("EASE: %f, %f, %f"%(ease_prec, ease_recall, ease_ndcg))
 
-# ae = AE_implicit(train=train_data, valid=valid_data, hidden_dim=10, num_epochs=10, learning_rate=0.1, reg_lambda=0.001, device = device, activation= 'tanh')
-# ae.fit()
-# ae_prec, ae_recall, ae_ndcg = eval_implicit(ae, train_data, test_data, top_k)
-# print("AE: %f, %f, %f"%(ae_prec, ae_recall, ae_ndcg))
+# uae = UAE_implicit(train=train_data, valid=valid_data, hidden_dim=10, num_epochs=10, learning_rate=0.1, reg_lambda=0.001, device = device, activation= 'tanh')
+# uae.fit()
+# uae_prec, uae_recall, uae_ndcg = eval_implicit(uae, train_data, test_data, top_k)
+# print("U-AE: %f, %f, %f"%(uae_prec, uae_recall, uae_ndcg))
+
+# iae = IAE_implicit(train=train_data, valid=valid_data, hidden_dim=10, num_epochs=10, learning_rate=0.1, reg_lambda=0.001, device = device, activation= 'tanh')
+# iae.fit()
+# iae_prec, iae_recall, iae_ndcg = eval_implicit(iae, train_data, test_data, top_k)
+# print("I-AE: %f, %f, %f"%(iae_prec, iae_recall, iae_ndcg))
 
 
 # dae = DAE_implicit(train=train_data, valid=valid_data, hidden_dim=10, dropout=0.1, num_epochs=10, learning_rate=0.1, reg_lambda=0.001, device = device, activation= 'tanh')

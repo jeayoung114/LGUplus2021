@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class AE_implicit(torch.nn.Module):
+class UAE_implicit(torch.nn.Module):
     def __init__(self, train, valid, num_epochs, hidden_dim, learning_rate, reg_lambda, device, activation="tanh"):
         super().__init__()
         self.train_mat = train
