@@ -28,8 +28,8 @@ class IAE_implicit(torch.nn.Module):
 
     def build_graph(self):
         # NN layers
-        self.encoder = nn.Linear(self.num_items, self.hidden_dim)
-        self.decoder = nn.Linear(self.hidden_dim, self.num_items)
+        self.encoder = nn.Linear(self.num_users, self.hidden_dim)
+        self.decoder = nn.Linear(self.hidden_dim, self.num_users)
         nn.init.normal_(self.encoder.weight, 0, 0.01)
         nn.init.normal_(self.decoder.weight, 0, 0.01)
 
@@ -53,7 +53,7 @@ class IAE_implicit(torch.nn.Module):
 
 
     def fit(self):
-        train_matrix = torch.FloatTensor(self.train_mat).to(self.device)
+        train_matrix = torch.FloatTensor(self.train_mat.T).to(self.device)
 
         for epoch in range(0, self.num_epochs):
             self.train()
@@ -68,6 +68,7 @@ class IAE_implicit(torch.nn.Module):
         self.eval()
         with torch.no_grad():
             self.reconstructed = self.forward(train_matrix).detach().cpu().numpy()
+            self.reconstructed = self.reconstructed.T
             
 
     def train_model_per_batch(self, batch_matrix):
