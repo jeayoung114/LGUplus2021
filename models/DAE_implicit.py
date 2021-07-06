@@ -31,13 +31,17 @@ class DAE_implicit(torch.nn.Module):
         # W, W'와 b, b'만들기
         self.enc_w = nn.Parameter(torch.ones(self.num_items, self.hidden_dim))
         self.enc_b = nn.Parameter(torch.ones(self.hidden_dim))
-        nn.init.normal_(self.enc_w, 0, 0.01)
-        nn.init.normal_(self.enc_b, 0, 0.01)
+        # nn.init.normal_(self.enc_w, 0, 0.01)
+        # nn.init.normal_(self.enc_b, 0, 0.01)
+        nn.init.xavier_uniform_(self.enc_w)
+        nn.init.normal_(self.enc_b, 0, 0.001)
 
         self.dec_w = nn.Parameter(torch.ones(self.hidden_dim, self.num_items))
         self.dec_b = nn.Parameter(torch.ones(self.num_items))
-        nn.init.normal_(self.dec_w, 0, 0.01)
-        nn.init.normal_(self.dec_b, 0, 0.01)
+        # nn.init.normal_(self.dec_w, 0, 0.01)
+        # nn.init.normal_(self.dec_b, 0, 0.01)
+        nn.init.xavier_uniform_(self.dec_w)
+        nn.init.normal_(self.dec_b, 0, 0.001)
 
         # 최적화 방법 설정
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.reg_lambda)
@@ -58,7 +62,7 @@ class DAE_implicit(torch.nn.Module):
         else:
             h = torch.sigmoid(denoised_x @ self.enc_w + self.enc_b)
 
-        # dencoder 과정
+        # decoder 과정
         output = torch.sigmoid(h @ self.dec_w + self.dec_b)
         return output
 

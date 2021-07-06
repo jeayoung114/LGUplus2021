@@ -26,19 +26,11 @@ class MultVAE_implicit(torch.nn.Module):
         self.reg_lambda = reg_lambda
         self.activation = activation
 
-        self.enc_dims = [self.num_items] + [self.hidden_dim]
-        self.dec_dims = self.enc_dims[::-1]
-        self.dims = self.enc_dims + self.dec_dims[1:]
-
         self.total_anneal_steps = 200000
         self.anneal_cap = 0.2
 
         self.dropout = dropout
-        self.reg = self.reg_lambda
-        self.lr = self.learning_rate
 
-        self.eps = 1e-6
-        self.anneal = 0.
         self.update_count = 0
         self.device = device
 
@@ -46,45 +38,43 @@ class MultVAE_implicit(torch.nn.Module):
 
 
     def build_graph(self):
-        self.encoder = nn.ModuleList()
-        for i, (d_in, d_out) in enumerate(zip(self.enc_dims[:-1], self.enc_dims[1:])):
-            if i == len(self.enc_dims[:-1]) - 1:
-                d_out *= 2
-            self.encoder.append(nn.Linear(d_in, d_out))
-            if i != len(self.enc_dims[:-1]) - 1:
-                self.encoder.append(nn.Tanh())
+        # W, W'와 b, b'만들기
+        self.enc_w = nn.Parameter(torch.ones(self.num_items, self.hidden_dim * 2))
+        self.enc_b = nn.Parameter(torch.ones(self.hidden_dim * 2))
+        nn.init.xavier_uniform_(self.enc_w)
+        nn.init.normal_(self.enc_b, 0, 0.001)
 
-        self.decoder = nn.ModuleList()
-        for i, (d_in, d_out) in enumerate(zip(self.dec_dims[:-1], self.dec_dims[1:])):
-            self.decoder.append(nn.Linear(d_in, d_out))
-            if i != len(self.dec_dims[:-1]) - 1:
-                self.decoder.append(nn.Tanh())
+        self.dec_w = nn.Parameter(torch.ones(self.hidden_dim, self.num_items))
+        self.dec_b = nn.Parameter(torch.ones(self.num_items))
+        nn.init.xavier_uniform_(self.dec_w)
+        nn.init.normal_(self.dec_b, 0, 0.001)
 
-        # optimizer
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr, weight_decay=self.reg)
+        # 최적화 방법 설정
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.reg_lambda)
 
-        # Send model to device (cpu or gpu)
+        # 모델을 device로 보냄
         self.to(self.device)
 
 
     def forward(self, x):
-        # encoder
-        h = F.dropout(F.normalize(x), p=self.dropout, training=self.training)
-        for layer in self.encoder:
-            h = layer(h)
+        # 입력의 일부를 제거
+        denoised_x = F.dropout(F.normalize(x), self.dropout, training=self.training)
 
-        # sample
-        mu_q = h[:, :self.enc_dims[-1]]
-        logvar_q = h[:, self.enc_dims[-1]:]  # log sigmod^2  batch x 200
-        std_q = torch.exp(0.5 * logvar_q)  # sigmod batch x 200
+        # encoder 과정
+        h = denoised_x @ self.enc_w + self.enc_b
+
+        # 잠재인수 z 만들기
+        mu_q = h[:, :self.hidden_dim]
+        logvar_q = h[:, self.hidden_dim:]
+        std_q = torch.exp(0.5 * logvar_q)
 
         epsilon = torch.zeros_like(std_q).normal_(mean=0, std=0.01)
         sampled_z = mu_q + self.training * epsilon * std_q
 
-        output = sampled_z
-        for layer in self.decoder:
-            output = layer(output)
+        # decoder 과정
+        output = sampled_z @ self.dec_w + self.dec_b
 
+        # KL loss
         if self.training:
             kl_loss = ((0.5 * (-logvar_q + torch.exp(logvar_q) + torch.pow(mu_q, 2) - 1)).sum(1)).mean()
             return output, kl_loss
@@ -94,8 +84,6 @@ class MultVAE_implicit(torch.nn.Module):
 
     def fit(self):
         train_matrix = torch.FloatTensor(self.train_mat).to(self.device)
-        batch_idx = np.arange(self.num_users)
-        batch_idx = torch.LongTensor(batch_idx).to(self.device)
 
         for epoch in range(0, self.num_epochs):
             self.train()
@@ -117,22 +105,21 @@ class MultVAE_implicit(torch.nn.Module):
             self.reconstructed = self.forward(train_matrix).detach().cpu().numpy()
 
 
-    def train_model_per_batch(self, batch_matrix):
-        # zero grad
+    def train_model_per_batch(self, train_matrix):
+        # grad 초기화
         self.optimizer.zero_grad()
 
-        # model forwrad
-        output, kl_loss = self.forward(batch_matrix)
+        # 모델 forwrad
+        output, kl_loss = self.forward(train_matrix)
 
-        # loss        
-        ce_loss = -(F.log_softmax(output, 1) * batch_matrix).sum(1).mean()
-
+        # loss 구함
+        ce_loss = -(F.log_softmax(output, 1) * train_matrix).sum(1).mean()
         loss = ce_loss + kl_loss * self.anneal
 
-        # backward
+        # 미분
         loss.backward()
 
-        # step
+        # 최적화
         self.optimizer.step()
 
         self.update_count += 1
