@@ -14,7 +14,7 @@ import torch.nn.functional as F
 
 
 class CDAE_implicit(torch.nn.Module):
-    def __init__(self, train, valid, num_epochs, hidden_dim, learning_rate, reg_lambda, dropout, device, activation="tanh"):
+    def __init__(self, train, valid, num_epochs, hidden_dim, learning_rate, reg_lambda, dropout, device, activation="sigmoid", loss="CE"):
         super().__init__()
         self.train_mat = train
         self.valid_mat = valid
@@ -26,6 +26,7 @@ class CDAE_implicit(torch.nn.Module):
         self.learning_rate = learning_rate
         self.reg_lambda = reg_lambda
         self.activation = activation
+        self.loss_function = loss
         self.dropout = dropout
 
         self.device = device
@@ -34,15 +35,17 @@ class CDAE_implicit(torch.nn.Module):
 
 
     def build_graph(self):
-        # W, W'와 b, b', V 만들고 초기화
+        # W, W'와 b, b', V 만들기
         self.enc_w = nn.Parameter(torch.ones(self.num_items, self.hidden_dim))
         self.enc_b = nn.Parameter(torch.ones(self.hidden_dim))
-        nn.init.normal_(self.enc_w, 0, 0.01)
-        nn.init.normal_(self.enc_b, 0, 0.01)
+        nn.init.xavier_uniform_(self.enc_w)
+        nn.init.normal_(self.enc_b, 0, 0.001)
+
         self.dec_w = nn.Parameter(torch.ones(self.hidden_dim, self.num_items))
         self.dec_b = nn.Parameter(torch.ones(self.num_items))
-        nn.init.normal_(self.dec_w, 0, 0.01)
-        nn.init.normal_(self.dec_b, 0, 0.01)
+        nn.init.xavier_uniform_(self.dec_w)
+        nn.init.normal_(self.dec_b, 0, 0.001)
+
         self.user_embedding = nn.Embedding(self.num_users, self.hidden_dim)
 
         # 최적화 방법 설정
@@ -52,7 +55,7 @@ class CDAE_implicit(torch.nn.Module):
         self.to(self.device)
 
 
-    def forward(self, u, x):     
+    def forward(self, u, x):
         # 입력의 일부를 제거
         denoised_x = F.dropout(x, self.dropout, training=self.training) 
 
@@ -71,13 +74,13 @@ class CDAE_implicit(torch.nn.Module):
 
     def fit(self):
         train_matrix = torch.FloatTensor(self.train_mat).to(self.device)
-        batch_idx = np.arange(self.num_users)
-        batch_idx = torch.LongTensor(batch_idx).to(self.device)
+        user_idx = np.arange(self.num_users)
+        user_idx = torch.LongTensor(user_idx).to(self.device)
 
         for epoch in range(0, self.num_epochs):
             self.train()
-            loss = self.train_model_per_batch(batch_idx, train_matrix)
-            print('epoch %d  loss = %.4f' % (epoch + 1, loss))
+            loss = self.train_model_per_batch(user_idx, train_matrix)
+            # print('epoch %d  loss = %.4f' % (epoch + 1, loss))
 
             if torch.isnan(loss):
                 print('Loss NAN. Train finish.')
@@ -85,15 +88,15 @@ class CDAE_implicit(torch.nn.Module):
 
         self.eval()
         with torch.no_grad():
-            self.reconstructed = self.forward(batch_idx, train_matrix).detach().cpu().numpy()
+            self.reconstructed = self.forward(user_idx, train_matrix).detach().cpu().numpy()
 
 
-    def train_model_per_batch(self, batch_idx, train_matrix):
+    def train_model_per_batch(self, user_idx, train_matrix):
         # grad 초기화
         self.optimizer.zero_grad()
 
         # 모델 forwrad
-        output = self.forward(batch_idx, train_matrix)
+        output = self.forward(user_idx, train_matrix)
 
         # loss 구함
         if self.loss_function == 'MSE':
@@ -101,14 +104,12 @@ class CDAE_implicit(torch.nn.Module):
         else:
             loss = F.binary_cross_entropy(output, train_matrix, reduction='none').sum(1).mean()
 
-        # 미분
+        # 역전파
         loss.backward()
 
         # 최적화
         self.optimizer.step()
-
         return loss
-
 
     def predict(self, user_id, item_ids):
         return self.reconstructed[user_id, item_ids]

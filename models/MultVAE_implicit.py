@@ -94,7 +94,7 @@ class MultVAE_implicit(torch.nn.Module):
                 self.anneal = self.anneal_cap
 
             loss = self.train_model_per_batch(train_matrix)
-            print('epoch %d  loss = %.4f' % (epoch + 1, loss))
+            # print('epoch %d  loss = %.4f' % (epoch + 1, loss))
 
             if torch.isnan(loss):
                 print('Loss NAN. Train finish.')
@@ -116,7 +116,7 @@ class MultVAE_implicit(torch.nn.Module):
         ce_loss = -(F.log_softmax(output, 1) * train_matrix).sum(1).mean()
         loss = ce_loss + kl_loss * self.anneal
 
-        # 미분
+        # 역전파
         loss.backward()
 
         # 최적화

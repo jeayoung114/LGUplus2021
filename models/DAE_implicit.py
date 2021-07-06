@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class DAE_implicit(torch.nn.Module):
-    def __init__(self, train, valid, num_epochs, hidden_dim, learning_rate, reg_lambda, dropout, device, activation="tanh"):
+    def __init__(self, train, valid, num_epochs, hidden_dim, learning_rate, reg_lambda, dropout, device, activation="sigmoid", loss="CE"):
         super().__init__()
         self.train_mat = train
         self.valid_mat = valid
@@ -20,6 +20,7 @@ class DAE_implicit(torch.nn.Module):
         self.learning_rate = learning_rate
         self.reg_lambda = reg_lambda
         self.activation = activation
+        self.loss_function = loss
         self.dropout = dropout
 
         self.device = device
@@ -31,15 +32,11 @@ class DAE_implicit(torch.nn.Module):
         # W, W'와 b, b'만들기
         self.enc_w = nn.Parameter(torch.ones(self.num_items, self.hidden_dim))
         self.enc_b = nn.Parameter(torch.ones(self.hidden_dim))
-        # nn.init.normal_(self.enc_w, 0, 0.01)
-        # nn.init.normal_(self.enc_b, 0, 0.01)
         nn.init.xavier_uniform_(self.enc_w)
         nn.init.normal_(self.enc_b, 0, 0.001)
 
         self.dec_w = nn.Parameter(torch.ones(self.hidden_dim, self.num_items))
         self.dec_b = nn.Parameter(torch.ones(self.num_items))
-        # nn.init.normal_(self.dec_w, 0, 0.01)
-        # nn.init.normal_(self.dec_b, 0, 0.01)
         nn.init.xavier_uniform_(self.dec_w)
         nn.init.normal_(self.dec_b, 0, 0.001)
 
@@ -74,7 +71,7 @@ class DAE_implicit(torch.nn.Module):
             self.train()
             
             loss = self.train_model_per_batch(train_matrix)
-            print('epoch %d  loss = %.4f' % (epoch + 1, loss))
+            # print('epoch %d  loss = %.4f' % (epoch + 1, loss))
 
             if torch.isnan(loss):
                 print('Loss NAN. Train finish.')
@@ -98,7 +95,7 @@ class DAE_implicit(torch.nn.Module):
         else:
             loss = F.binary_cross_entropy(output, train_matrix, reduction='none').sum(1).mean()
 
-        # 미분
+        # 역전파
         loss.backward()
 
         # 최적화

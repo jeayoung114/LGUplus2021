@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class IAE_implicit(torch.nn.Module):
-    def __init__(self, train, valid, num_epochs, hidden_dim, learning_rate, reg_lambda, device, activation="tanh", loss="CE"):
+    def __init__(self, train, valid, num_epochs, hidden_dim, learning_rate, reg_lambda, device, activation="sigmoid", loss="CE"):
         super().__init__()
         self.train_mat = train
         self.valid_mat = valid
@@ -28,28 +28,35 @@ class IAE_implicit(torch.nn.Module):
 
 
     def build_graph(self):
-        # NN layers
-        self.encoder = nn.Linear(self.num_users, self.hidden_dim)
-        self.decoder = nn.Linear(self.hidden_dim, self.num_users)
-        nn.init.normal_(self.encoder.weight, 0, 0.01)
-        nn.init.normal_(self.decoder.weight, 0, 0.01)
+        # W, W'와 b, b'만들기
+        self.enc_w = nn.Parameter(torch.ones(self.num_users, self.hidden_dim))
+        self.enc_b = nn.Parameter(torch.ones(self.hidden_dim))
+        nn.init.xavier_uniform_(self.enc_w)
+        nn.init.normal_(self.enc_b, 0, 0.001)
 
-        # optimizer
+        self.dec_w = nn.Parameter(torch.ones(self.hidden_dim, self.num_users))
+        self.dec_b = nn.Parameter(torch.ones(self.num_users))
+        nn.init.xavier_uniform_(self.dec_w)
+        nn.init.normal_(self.dec_b, 0, 0.001)
+
+        # 최적화 방법 설정
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.reg_lambda)
 
-        # Send model to device (cpu or gpu)
+        # 모델을 device로 보냄
         self.to(self.device)
 
 
     def forward(self, x):
+        # encoder 과정
         if self.activation == 'None':
-            h = self.encoder(x)
+            h = x @ self.enc_w + self.enc_b
         elif self.activation == 'tanh':
-            h = torch.tanh(self.encoder(x))
+            h = torch.tanh(x @ self.enc_w + self.enc_b)
         else:
-            h = torch.sigmoid(self.encoder(x))
+            h = torch.sigmoid(x @ self.enc_w + self.enc_b)
 
-        output = torch.sigmoid(self.decoder(h))
+        # decoder 과정
+        output = torch.sigmoid(h @ self.dec_w + self.dec_b)
         return output
 
 
@@ -60,7 +67,7 @@ class IAE_implicit(torch.nn.Module):
             self.train()
             
             loss = self.train_model_per_batch(train_matrix)
-            print('epoch %d  loss = %.4f' % (epoch + 1, loss))
+            # print('epoch %d  loss = %.4f' % (epoch + 1, loss))
 
             if torch.isnan(loss):
                 print('Loss NAN. Train finish.')
@@ -73,25 +80,24 @@ class IAE_implicit(torch.nn.Module):
             
 
     def train_model_per_batch(self, train_matrix):
-        # zero grad
+        # grad 초기화
         self.optimizer.zero_grad()
 
-        # model forwrad
+        # 모델 forwrad
         output = self.forward(train_matrix)
 
-        # loss
+        # loss 구함
         if self.loss_function == 'MSE':
             loss = F.mse_loss(output, train_matrix, reduction='none').sum(1).mean()
         else:
             loss = F.binary_cross_entropy(output, train_matrix, reduction='none').sum(1).mean()
 
-        # backward
+        # 역전파
         loss.backward()
         
-        # step
+        # 최적화
         self.optimizer.step()
         return loss
-
 
 
     def predict(self, user_id, item_ids):
