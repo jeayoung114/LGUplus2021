@@ -66,10 +66,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # uae_prec, uae_recall, uae_ndcg = eval_implicit(uae, train_data, test_data, top_k)
 # print("U-AE: %f, %f, %f"%(uae_prec, uae_recall, uae_ndcg))
 
-iae = IAE_implicit(train=train_data, valid=valid_data, hidden_dim=10, num_epochs=10, learning_rate=0.1, reg_lambda=0.001, device = device, activation= 'tanh')
-iae.fit()
-iae_prec, iae_recall, iae_ndcg = eval_implicit(iae, train_data, test_data, top_k)
-print("I-AE: %f, %f, %f"%(iae_prec, iae_recall, iae_ndcg))
+# iae = IAE_implicit(train=train_data, valid=valid_data, hidden_dim=10, num_epochs=10, learning_rate=0.1, reg_lambda=0.001, device = device, activation= 'tanh')
+# iae.fit()
+# iae_prec, iae_recall, iae_ndcg = eval_implicit(iae, train_data, test_data, top_k)
+# print("I-AE: %f, %f, %f"%(iae_prec, iae_recall, iae_ndcg))
 
 
 # dae = DAE_implicit(train=train_data, valid=valid_data, hidden_dim=10, dropout=0.1, num_epochs=10, learning_rate=0.1, reg_lambda=0.001, device = device, activation= 'tanh')
