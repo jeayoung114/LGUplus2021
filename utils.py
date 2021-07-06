@@ -42,11 +42,24 @@ dataset 관련 함수
 def load_data(data_name, implicit=True):
     data_path = './data/%s'%(data_name)
     if not os.path.exists(data_path):
-        # https://drive.google.com/file/d/1_HFBNRk-FUOO1nquQVfWbD1IiqnWNzOW/view?usp=sharing
-        gdd.download_file_from_google_drive(
-            file_id='1_HFBNRk-FUOO1nquQVfWbD1IiqnWNzOW',
-            dest_path=data_path,
-        )
+        if 'small' in data_name:
+            # https://drive.google.com/file/d/1_HFBNRk-FUOO1nquQVfWbD1IiqnWNzOW/view?usp=sharing
+            gdd.download_file_from_google_drive(
+                file_id='1_HFBNRk-FUOO1nquQVfWbD1IiqnWNzOW',
+                dest_path=data_path,
+            )
+        elif '2m' in data_name:
+            # https://drive.google.com/file/d/1f2bzvZw87Gu2yMpNm6EnxE6uHJYbbBUn/view?usp=sharing
+            gdd.download_file_from_google_drive(
+                file_id='1f2bzvZw87Gu2yMpNm6EnxE6uHJYbbBUn',
+                dest_path=data_path,
+            )
+        else: # 5m
+            # https://drive.google.com/file/d/19ft9n-gO3rJYKmkVyejD3H94IHGlQVzU/view?usp=sharing
+            gdd.download_file_from_google_drive(
+                file_id='19ft9n-gO3rJYKmkVyejD3H94IHGlQVzU',
+                dest_path=data_path,
+            )
         print("데이터 다운로드 완료!")
 
     # 데이터셋 불러오기
