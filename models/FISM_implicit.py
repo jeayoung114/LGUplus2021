@@ -14,8 +14,8 @@ class FISMrmse_implicit():
     def __init__(self, train, valid, lr=0.001, num_epochs=10,
                  rho=3, # negative 샘플링 비율
                  alpha=0.5, # 사용자 초모수
-                 beta=0.6, # 가중치 l2 정규화 
-                 item_bias_reg=0.1, # 편향 l2 정규화 
+                 beta=1e-4, # 가중치 l2 정규화 
+                 item_bias_reg=1e-2, # 편향 l2 정규화 
                  user_bias_reg=0.1, # 편향 l2 정규화 
                  num_factors=16): # P, Q 행렬 은닉층 차원
         self.train = train
@@ -47,10 +47,8 @@ class FISMrmse_implicit():
 
             # 샘플링
             R = sp.dok_matrix((self.n_users, self.num_items), dtype=np.float32)
-            count = 0
             for (u, i) in self.train_matrix.keys():
                 R[u, i] = 1
-                count += 1
                 # negative 샘플링
                 for t in range(self.rho):
                     j = np.random.randint(self.num_items)
@@ -60,12 +58,10 @@ class FISMrmse_implicit():
             print('Sample finished.')
 
             loss = 0
-            count = 0
             for (u, i) in R.keys():
-                count += 1
                 # 사용자 u가 평가한 항목 수
                 n_u = len(self.train_matrix[u])
-                
+                # P_j의 합 계산
                 x = np.zeros(shape=(self.num_factors,))
                 for j in self.train_matrix[u].keys():
                     j = j[1]
@@ -73,10 +69,12 @@ class FISMrmse_implicit():
                     x += self.P[j]
                 x = x / math.pow(n_u - 1, self.alpha)
 
+                # 사용자, 항목 편향 
                 b_u = self.user_biases[u]
                 b_i = self.item_biases[i]
+                # 예측 값 계산
                 predict_r_ui = b_u + b_i + np.dot(self.Q[i], x)
-
+                # 실제 값과 예측 값의 차이
                 error_ui = R[u, i] - predict_r_ui
 
                 # 사용자, 항목 편향 업데이트
