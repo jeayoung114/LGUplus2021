@@ -53,6 +53,7 @@ class GMF_implicit(torch.nn.Module):
             UIdataset[user_id].append(np.concatenate([pos_labels, neg_labels]))
 
         self.UIdataset = UIdataset
+        print("데이터 생성 완료")
 
 
     def build_graph(self):
@@ -69,7 +70,8 @@ class GMF_implicit(torch.nn.Module):
         self.to(self.device)
 
 
-    def forward(self, user_indices, item_indices):        
+    def forward(self, user_indices, item_indices):  
+        # 해당하는 사용자와 항목 임베딩 갖고오기
         user_embedding = self.user_embedding(user_indices)
         item_embedding = self.item_embedding(item_indices)
 
