@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class NeuMF_implicit(torch.nn.Module):
+class NeuMF_implicit(nn.Module):
     def __init__(self, train, valid, num_epochs, hidden_dim_mf, hidden_dim_mlp, learning_rate, reg_lambda, device, batch_size=2, neg_ratio=3, loss="CE"):
         super().__init__()
         self.train_mat = train
@@ -35,7 +35,7 @@ class NeuMF_implicit(torch.nn.Module):
 
 
     def make_UIdataset(self, train, neg_ratio):
-        # {'사용자 ID' = [[positive 샘플, negative 샘플], [1, 1, 1, ..., 0, 0]]}
+        # UIdataset = {'사용자 ID': [[positive 샘플, negative 샘플], [1, 1, 1, ..., 0, 0]]}
         UIdataset = {}
         for user_id, items_by_user in enumerate(train):
             UIdataset[user_id] = []
@@ -66,13 +66,13 @@ class NeuMF_implicit(torch.nn.Module):
         self.user_embedding_mlp = nn.Embedding(num_embeddings=self.num_users, embedding_dim=self.hidden_dim_mlp)
         self.item_embedding_mlp = nn.Embedding(num_embeddings=self.num_items, embedding_dim=self.hidden_dim_mlp)
 
-        self.fc_layers = torch.nn.ModuleList()
-        # Apply linear transformations between each fully-connected layer
+        # MLP layers 쌓기
+        self.fc_layers = nn.ModuleList()
         for idx, (in_size, out_size) in enumerate(zip(self.layers[:-1], self.layers[1:])):
-            self.fc_layers.append(torch.nn.Linear(in_size, out_size))
+            self.fc_layers.append(nn.Linear(in_size, out_size))
 
-        # Apply a linear transformation to the incoming last fully-connected layer -> output of size 1
-        self.affine_output = torch.nn.Linear(in_features=self.layers[-1] + self.hidden_dim_mf, out_features=1)
+        # 1차원 output을 내는 one-layer 선언
+        self.affine_output = nn.Linear(in_features=self.layers[-1] + self.hidden_dim_mf, out_features=1)
 
         # 최적화 방법 설정
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.reg_lambda)
@@ -82,22 +82,23 @@ class NeuMF_implicit(torch.nn.Module):
 
 
     def forward(self, user_indices, item_indices):
-        # GMF 사용자, 항목 임베딩 생성
+        # GMF 사용자, 항목 임베딩 갖고오기
         user_embedding_mf = self.user_embedding_mf(user_indices)
         item_embedding_mf = self.item_embedding_mf(item_indices)
-        # MLP 사용자, 항목 임베딩 생성
+        # MLP 사용자, 항목 임베딩 갖고오기
         user_embedding_mlp = self.user_embedding_mlp(user_indices)
         item_embedding_mlp = self.item_embedding_mlp(item_indices)
 
-        # MLP layers
+        # GMF 원소별 곱
+        mf_vector = torch.mul(user_embedding_mf, item_embedding_mf)
+
+        # MLP layers 통과
         mlp_vector = torch.cat([user_embedding_mlp, item_embedding_mlp], dim=-1)  # the concat latent vector
         for idx, _ in enumerate(range(len(self.fc_layers))):
             mlp_vector = self.fc_layers[idx](mlp_vector)
             mlp_vector = torch.relu(mlp_vector)
 
-        mf_vector = torch.mul(user_embedding_mf, item_embedding_mf)
-
-        # Concatenate the MLP vector and MF vector to get the final vector
+        # GMF와 MLP 임베딩 벡터 연결
         vector = torch.cat([mlp_vector, mf_vector], dim=-1)
 
         # one-layer와 활성함수
@@ -117,7 +118,9 @@ class NeuMF_implicit(torch.nn.Module):
 
             batch_num = int(len(user_indices) / self.batch_size) + 1
             for batch_idx in range(batch_num):
+                # 배치 사용자 인덱스
                 batch_user_indices = user_indices[batch_idx*self.batch_size : (batch_idx+1)*self.batch_size]
+                # 배치 사용자, 항목 인덱스와 평점 데이터 저장
                 batch_user_ids = []
                 batch_item_ids = []
                 batch_labels = []
@@ -131,6 +134,7 @@ class NeuMF_implicit(torch.nn.Module):
 
                 batch_item_ids = np.array(batch_item_ids)
                 batch_labels = np.array(batch_labels)
+                # 배치 사용자 단위로 학습
                 batch_loss = self.train_model_per_batch(batch_user_ids, batch_item_ids, batch_labels)
                 if torch.isnan(batch_loss):
                     print('Loss NAN. Train finish.')
