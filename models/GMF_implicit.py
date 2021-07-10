@@ -33,7 +33,7 @@ class GMF_implicit(torch.nn.Module):
 
 
     def make_UIdataset(self, train, neg_ratio):
-        # {'사용자 ID' = [[positive 샘플, negative 샘플], [1, 1, 1, ..., 0, 0]]}
+        # UIdataset = {'사용자 ID': [[positive 샘플, negative 샘플], [1, 1, 1, ..., 0, 0]]}
         UIdataset = {}
         for user_id, items_by_user in enumerate(train):
             UIdataset[user_id] = []
@@ -60,7 +60,7 @@ class GMF_implicit(torch.nn.Module):
         # 사용자, 항목 임베딩 선언
         self.user_embedding = nn.Embedding(num_embeddings=self.num_users, embedding_dim=self.hidden_dim)
         self.item_embedding = nn.Embedding(num_embeddings=self.num_items, embedding_dim=self.hidden_dim)
-
+        # 1차원 output을 내는 one-layer 선언
         self.affine_output = nn.Linear(in_features=self.hidden_dim, out_features=1)
 
         # 최적화 방법 설정
@@ -95,7 +95,9 @@ class GMF_implicit(torch.nn.Module):
 
             batch_num = int(len(user_indices) / self.batch_size) + 1
             for batch_idx in range(batch_num):
+                # 배치 사용자 인덱스
                 batch_user_indices = user_indices[batch_idx*self.batch_size : (batch_idx+1)*self.batch_size]
+                # 배치 사용자, 항목 인덱스와 평점 데이터 저장
                 batch_user_ids = []
                 batch_item_ids = []
                 batch_labels = []
@@ -109,6 +111,7 @@ class GMF_implicit(torch.nn.Module):
 
                 batch_item_ids = np.array(batch_item_ids)
                 batch_labels = np.array(batch_labels)
+                # 배치 사용자 단위로 학습
                 batch_loss = self.train_model_per_batch(batch_user_ids, batch_item_ids, batch_labels)
                 if torch.isnan(batch_loss):
                     print('Loss NAN. Train finish.')
