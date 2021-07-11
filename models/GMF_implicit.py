@@ -109,8 +109,6 @@ class GMF_implicit(torch.nn.Module):
                     batch_item_ids.extend(item_ids.tolist())
                     batch_labels.extend(labels.tolist())
 
-                batch_item_ids = np.array(batch_item_ids)
-                batch_labels = np.array(batch_labels)
                 # 배치 사용자 단위로 학습
                 batch_loss = self.train_model_per_batch(batch_user_ids, batch_item_ids, batch_labels)
                 if torch.isnan(batch_loss):

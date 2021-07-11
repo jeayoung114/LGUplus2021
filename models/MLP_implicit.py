@@ -61,7 +61,7 @@ class MLP_implicit(torch.nn.Module):
         # 사용자, 항목 임베딩 선언
         self.user_embedding = nn.Embedding(num_embeddings=self.num_users, embedding_dim=self.hidden_dim)
         self.item_embedding = nn.Embedding(num_embeddings=self.num_items, embedding_dim=self.hidden_dim)
-        
+
         # MLP layers 쌓기
         self.fc_layers = torch.nn.ModuleList()
         for idx, (in_size, out_size) in enumerate(zip(self.layers[:-1], self.layers[1:])):
@@ -119,8 +119,6 @@ class MLP_implicit(torch.nn.Module):
                     batch_item_ids.extend(item_ids.tolist())
                     batch_labels.extend(labels.tolist())
 
-                batch_item_ids = np.array(batch_item_ids)
-                batch_labels = np.array(batch_labels)
                 # 배치 사용자 단위로 학습
                 batch_loss = self.train_model_per_batch(batch_user_ids, batch_item_ids, batch_labels)
                 if torch.isnan(batch_loss):
