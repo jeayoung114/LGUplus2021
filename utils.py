@@ -117,6 +117,7 @@ def load_data(data_name, implicit=True):
     test = sparse.csr_matrix(matrix)
 
     return train.toarray(), valid.toarray(), test.toarray(), idx2title
+    # return train, valid, test, idx2title
 
 
 # Precision, Recall, NDCG@K 평가
