@@ -12,7 +12,7 @@ import torch.nn.functional as F
 
 
 class MLP_implicit(torch.nn.Module):
-    def __init__(self, train, valid, num_epochs, hidden_dim, learning_rate, reg_lambda, device, batch_size=2, neg_ratio=3, loss="CE"):
+    def __init__(self, train, valid, num_epochs, hidden_dim, learning_rate, reg_lambda, device, layers=[16, 32, 16, 8], batch_size=2, neg_ratio=3, loss="CE"):
         super().__init__()
         self.train_mat = train
         self.valid_mat = valid
@@ -25,7 +25,7 @@ class MLP_implicit(torch.nn.Module):
         self.reg_lambda = reg_lambda
         self.batch_size = batch_size
         self.loss_function = loss
-        self.layers = [16, 32, 16, 8]
+        self.layers = layers
 
         self.device = device
 
@@ -62,6 +62,8 @@ class MLP_implicit(torch.nn.Module):
         self.user_embedding = nn.Embedding(num_embeddings=self.num_users, embedding_dim=self.hidden_dim)
         self.item_embedding = nn.Embedding(num_embeddings=self.num_items, embedding_dim=self.hidden_dim)
 
+        torch.nn.init.normal_(self.user_embedding.weight, std=0.01)
+        torch.nn.init.normal_(self.item_embedding.weight, std=0.01)
         # MLP layers 쌓기
         self.fc_layers = torch.nn.ModuleList()
         for idx, (in_size, out_size) in enumerate(zip(self.layers[:-1], self.layers[1:])):
@@ -147,9 +149,9 @@ class MLP_implicit(torch.nn.Module):
 
         # loss 구함
         if self.loss_function == 'MSE':
-            loss = F.mse_loss(output, labels).sum()
+            loss = F.mse_loss(output, labels, reduction='none').sum()
         else:
-            loss = F.binary_cross_entropy(output, labels).sum()
+            loss = F.binary_cross_entropy(output, labels, reduction='none').sum()
 
         # 역전파
         loss.backward()

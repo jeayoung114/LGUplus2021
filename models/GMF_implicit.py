@@ -12,7 +12,7 @@ import torch.nn.functional as F
 
 
 class GMF_implicit(torch.nn.Module):
-    def __init__(self, train, valid, num_epochs, hidden_dim, learning_rate, reg_lambda, device, batch_size=2, neg_ratio=3, loss="CE"):
+    def __init__(self, train, valid, num_epochs, hidden_dim, learning_rate, reg_lambda, device, is_vanila_MF=False, batch_size=2, neg_ratio=3, loss="CE"):
         super().__init__()
         self.train_mat = train
         self.valid_mat = valid
@@ -23,6 +23,7 @@ class GMF_implicit(torch.nn.Module):
         self.hidden_dim = hidden_dim
         self.learning_rate = learning_rate
         self.reg_lambda = reg_lambda
+        self.is_vanila_MF = is_vanila_MF
         self.batch_size = batch_size
         self.loss_function = loss
 
@@ -60,6 +61,9 @@ class GMF_implicit(torch.nn.Module):
         # 사용자, 항목 임베딩 선언
         self.user_embedding = nn.Embedding(num_embeddings=self.num_users, embedding_dim=self.hidden_dim)
         self.item_embedding = nn.Embedding(num_embeddings=self.num_items, embedding_dim=self.hidden_dim)
+
+        torch.nn.init.normal_(self.user_embedding.weight, std=0.01)
+        torch.nn.init.normal_(self.item_embedding.weight, std=0.01)
         # 1차원 output을 내는 one-layer 선언
         self.affine_output = nn.Linear(in_features=self.hidden_dim, out_features=1)
 
@@ -77,10 +81,13 @@ class GMF_implicit(torch.nn.Module):
 
         # 원소별 곱
         element_product = torch.mul(user_embedding, item_embedding)
-
-        # one-layer와 활성함수
-        logits = self.affine_output(element_product)
-        output = torch.sigmoid(logits)
+        if self.is_vanila_MF:
+            self.loss_function = 'MSE'
+            output = torch.sum(element_product, dim=1)
+        else:
+            # one-layer와 활성함수
+            logits = self.affine_output(element_product)
+            output = torch.sigmoid(logits)
 
         return output
 
@@ -137,9 +144,9 @@ class GMF_implicit(torch.nn.Module):
 
         # loss 구함
         if self.loss_function == 'MSE':
-            loss = F.mse_loss(output, labels).sum()
+            loss = F.mse_loss(output, labels, reduction='none').sum()
         else:
-            loss = F.binary_cross_entropy(output, labels).sum()
+            loss = F.binary_cross_entropy(output, labels, reduction='none').sum()
 
         # 역전파
         loss.backward()

@@ -12,7 +12,7 @@ import torch.nn.functional as F
 
 
 class NeuMF_implicit(nn.Module):
-    def __init__(self, train, valid, num_epochs, hidden_dim_mf, hidden_dim_mlp, learning_rate, reg_lambda, device, batch_size=2, neg_ratio=3, loss="CE"):
+    def __init__(self, train, valid, num_epochs, hidden_dim_mf, hidden_dim_mlp, learning_rate, reg_lambda, device, layers=[16, 32, 16, 8], batch_size=2, neg_ratio=3, loss="CE"):
         super().__init__()
         self.train_mat = train
         self.valid_mat = valid
@@ -26,7 +26,7 @@ class NeuMF_implicit(nn.Module):
         self.reg_lambda = reg_lambda
         self.batch_size = batch_size
         self.loss_function = loss
-        self.layers = [16, 32, 16, 8]
+        self.layers = layers
 
         self.device = device
 
@@ -66,6 +66,11 @@ class NeuMF_implicit(nn.Module):
         self.user_embedding_mlp = nn.Embedding(num_embeddings=self.num_users, embedding_dim=self.hidden_dim_mlp)
         self.item_embedding_mlp = nn.Embedding(num_embeddings=self.num_items, embedding_dim=self.hidden_dim_mlp)
 
+        torch.nn.init.normal_(self.user_embedding_mf.weight, std=0.01)
+        torch.nn.init.normal_(self.item_embedding_mf.weight, std=0.01)
+        torch.nn.init.normal_(self.user_embedding_mlp.weight, std=0.01)
+        torch.nn.init.normal_(self.item_embedding_mlp.weight, std=0.01)
+
         # MLP layers 쌓기
         self.fc_layers = nn.ModuleList()
         for idx, (in_size, out_size) in enumerate(zip(self.layers[:-1], self.layers[1:])):
@@ -93,7 +98,7 @@ class NeuMF_implicit(nn.Module):
         mf_vector = torch.mul(user_embedding_mf, item_embedding_mf)
 
         # MLP layers 통과
-        mlp_vector = torch.cat([user_embedding_mlp, item_embedding_mlp], dim=-1)  # the concat latent vector
+        mlp_vector = torch.cat([user_embedding_mlp, item_embedding_mlp], dim=-1)
         for idx, _ in enumerate(range(len(self.fc_layers))):
             mlp_vector = self.fc_layers[idx](mlp_vector)
             mlp_vector = torch.relu(mlp_vector)
@@ -160,9 +165,9 @@ class NeuMF_implicit(nn.Module):
 
         # loss 구함
         if self.loss_function == 'MSE':
-            loss = F.mse_loss(output, labels).sum()
+            loss = F.mse_loss(output, labels, reduction='none').sum()
         else:
-            loss = F.binary_cross_entropy(output, labels).sum()
+            loss = F.binary_cross_entropy(output, labels, reduction='none').sum()
 
         # 역전파
         loss.backward()
