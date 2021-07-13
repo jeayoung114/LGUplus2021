@@ -27,3 +27,12 @@ Framework on Recommender Systems
   - DAE (i)
   - CDAE (i)
   - MultVAE (i)
+
+- Neural collaborative filtering
+  - GMF (i)
+  - MLP (i)
+  - NeuMF (i)
+
+- Graph collaborative filterig
+  - NGCF (i)
+  - LightGCN (i)
