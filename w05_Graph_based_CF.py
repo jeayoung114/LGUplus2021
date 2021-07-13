@@ -44,20 +44,20 @@ top_k = 50
 """
 model 학습
 """
-device = "cpu" #torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
-# start = time.time()  # 시작 시간 저장
-# ngcf = NGCF_implicit(train_data, valid_data, learning_rate=0.01, regs=0.001, batch_size=1024, num_epochs=100, emb_size=400, layers_size=3, node_dropout=0.5, mess_dropout=0.5, device=device)
-# ngcf.fit()
-# ngcf_prec, ngcf_recall, ngcf_ndcg = eval_implicit(ngcf, train_data, test_data, top_k)
-# print("NGCF: %f, %f, %f"%(ngcf_prec, ngcf_recall, ngcf_ndcg))
-# print("time 분 :", (time.time() - start)/60.0)
-# print("======================================")
+start = time.time()  # 시작 시간 저장
+ngcf = NGCF_implicit(train_data, valid_data, learning_rate=0.01, regs=0.001, batch_size=2048, num_epochs=100, emb_size=400, layers_size=[50], node_dropout=0.0, mess_dropout=0.0, use_bpr=False, device=device)
+ngcf.fit()
+ngcf_prec, ngcf_recall, ngcf_ndcg = eval_implicit(ngcf, train_data, test_data, top_k)
+print("NGCF: %f, %f, %f"%(ngcf_prec, ngcf_recall, ngcf_ndcg))
+print("time 분 :", (time.time() - start)/60.0)
+print("======================================")
 
 
 start = time.time()  # 시작 시간 저장
-ngcf = LightGCN_implicit(train_data, valid_data, learning_rate=0.001, regs=0.0001, batch_size=20480, num_epochs=100, emb_size=200, num_layers=2, node_dropout=0.5, device=device)
+ngcf = LightGCN_implicit(train_data, valid_data, learning_rate=0.005, regs=0.001, batch_size=2048, num_epochs=70, emb_size=400, num_layers=1, node_dropout=0.0, use_bpr=False, device=device)
 ngcf.fit()
 ngcf_prec, ngcf_recall, ngcf_ndcg = eval_implicit(ngcf, train_data, test_data, top_k)
 print("NGCF: %f, %f, %f"%(ngcf_prec, ngcf_recall, ngcf_ndcg))
