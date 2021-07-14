@@ -38,5 +38,5 @@ Framework on Recommender Systems
   - LightGCN (i)
 
 ## How to run
-1. Edit models' hyper-parameters you want in ```main.py```
-2. Run ```main.py```
+1. Edit models' hyper-parameters you want in ```main.py```.
+2. Run ```main.py```.
