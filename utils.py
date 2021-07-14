@@ -1,12 +1,14 @@
 import os
 import math
+import ast
 import numpy as np
 import pandas as pd
 
 from scipy import sparse
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, roc_auc_score, log_loss
 from google_drive_downloader import GoogleDriveDownloader as gdd
+from tqdm import tqdm
 
 
 # 2d array를 dictionary로 만듦
@@ -119,6 +121,130 @@ def load_data(data_name, implicit=True):
     return train.toarray(), valid.toarray(), test.toarray(), idx2title
     # return train, valid, test, idx2title
 
+def load_data_CTR(data_name, pos_threshold=6):
+    data_path = './data/%s'%(data_name)
+    if not os.path.exists(data_path):
+        if 'small' in data_name:
+            # https://drive.google.com/file/d/1_HFBNRk-FUOO1nquQVfWbD1IiqnWNzOW/view?usp=sharing
+            gdd.download_file_from_google_drive(
+                file_id='1_HFBNRk-FUOO1nquQVfWbD1IiqnWNzOW',
+                dest_path=data_path,
+            )
+        elif '2m' in data_name:
+            # https://drive.google.com/file/d/1f2bzvZw87Gu2yMpNm6EnxE6uHJYbbBUn/view?usp=sharing
+            gdd.download_file_from_google_drive(
+                file_id='1f2bzvZw87Gu2yMpNm6EnxE6uHJYbbBUn',
+                dest_path=data_path,
+            )
+        else: # 5m
+            # https://drive.google.com/file/d/19ft9n-gO3rJYKmkVyejD3H94IHGlQVzU/view?usp=sharing
+            gdd.download_file_from_google_drive(
+                file_id='19ft9n-gO3rJYKmkVyejD3H94IHGlQVzU',
+                dest_path=data_path,
+            )
+        print("데이터 다운로드 완료!")
+
+    # 데이터셋 불러오기
+    column_names = ['user_id', 'item_id', 'rating', 'timestamp', 'title', 'people', 'country', 'genre']
+    movie_data = pd.read_csv(data_path, names=column_names)
+
+    # 평점이 X점 이상인 데이터는 1로, 나머지는 0으로 설정한다.
+    movie_data['rating'] = movie_data['rating'].apply(lambda x: 1 if x >= pos_threshold else 0)
+
+
+    # 전체 데이터셋의 user, item 수 확인
+    user_list = list(movie_data['user_id'].unique())
+    item_list = list(movie_data['item_id'].unique())
+
+    num_users = len(user_list)
+    num_items = len(item_list)
+    num_ratings = len(movie_data)
+
+    # 전체 데이터셋을 돌면서 모든 종류의 영화 장르, 국가, 배우 확인
+    all_genre_dict = {'None': 0}
+    all_country_dict = {'None': 0}
+    all_people_dict = {'None': 0}
+
+    for index, row in tqdm(movie_data.iterrows(), total=len(movie_data), desc='check genre, country, people'):
+        genres = row["genre"]
+        coutries = row["country"]
+        people = row["people"]
+        genres = ast.literal_eval(genres)
+        coutries = ast.literal_eval(coutries)
+        people = ast.literal_eval(people)
+        
+        for genre in genres:
+            if all_genre_dict.get(genre) is None:
+                all_genre_dict[genre] = len(all_genre_dict)
+        for country in coutries:
+            if all_country_dict.get(country) is None:
+                all_country_dict[country] = len(all_country_dict)
+        for person in people:
+            if all_people_dict.get(person) is None:
+                all_people_dict[person] = len(all_people_dict)
+
+    num_genres = len(all_genre_dict)
+    num_countries = len(all_country_dict)
+    num_people = len(all_people_dict)
+
+    # 장르, 국가, 배우, 제목과 아이템id를 매핑할 dict를 생성합니다. 이미 있는 아이템은 추가하지 않습니다.
+    idx2title = {}
+    idx2genre = {}
+    idx2country = {}
+    idx2people = {}
+
+    item_data = movie_data[['item_id', 'title', 'people', 'country', 'genre']]
+    item_data = item_data.drop_duplicates()
+    for idx, title, people, country, genre in zip(item_data['item_id'], item_data['title'], item_data['people'], item_data['country'], item_data['genre']): 
+        idx2title[idx] = title
+        idx2genre[idx] = people
+        idx2country[idx] = country
+        idx2people[idx] = genre
+    
+    # train, valid, test 나누기
+    train_valid, test = train_test_split(movie_data, test_size=0.2, stratify = movie_data['rating'], random_state = 1234)
+    train, valid = train_test_split(train_valid, test_size=0.1, stratify = train_valid['rating'], random_state = 1234)
+
+    # 전체 데이터셋을 돌면서 matrix 생성하는 함수를 정의합니다.
+    num_fields = 5 # 사용자, 항목, 장르_1, 국가_1, 배우_1
+    def df_to_array(df):
+        final_array = np.zeros((len(df), num_fields))
+        for index, (_, row) in tqdm(enumerate(df.iterrows()), total=len(df), desc='convert df to array'):
+            # user_id
+            user_id = row["user_id"]
+
+            # item_id
+            item_id = row["item_id"]
+
+            # genre
+            genres = row["genre"]
+            genres = ast.literal_eval(genres)
+            genre_id = all_genre_dict[genres[0]] if len(genres) > 0 else 0
+
+            # country
+            coutries = row["country"]
+            coutries = ast.literal_eval(coutries)
+            country_id = all_country_dict[coutries[0]] if len(coutries) > 0 else 0
+
+            # people
+            people = row["people"]
+            people = ast.literal_eval(people)
+            people_id = all_people_dict[people[0]] if len(people) > 0 else 0
+            
+            final_array[index] = [user_id, item_id, genre_id, country_id, people_id]
+
+        return final_array
+
+    train_arr = df_to_array(train)
+    train_rating = train['rating'].values
+    valid_arr = df_to_array(valid)
+    valid_rating = valid['rating'].values
+    test_arr = df_to_array(test)
+    test_rating = test['rating'].values
+    field_dims = [num_users, num_items, num_genres, num_countries, num_people]
+
+    return train_arr, train_rating, valid_arr, valid_rating, test_arr, test_rating, field_dims
+
 
 # Precision, Recall, NDCG@K 평가
 # input
@@ -218,7 +344,7 @@ def eval_explicit(model, train_data, test_data):
 
             pred_u_score = pred_matrix[user_id, target_u]
 
-            rmse = mean_squared_error(target_u_score, pred_u_score, squared=False)
+            rmse = mean_squared_error(target_u_score, pred_u_score)
             rmse_list.append(rmse)
     else:
         for user_id in range(len(train_data)):
@@ -229,7 +355,15 @@ def eval_explicit(model, train_data, test_data):
             pred_u_score = model.predict(user_id, target_u)
 
             # RMSE 계산
-            rmse = mean_squared_error(target_u_score, pred_u_score, squared=False)
+            rmse = mean_squared_error(target_u_score, pred_u_score)
             rmse_list.append(rmse)
 
     return np.mean(rmse_list)
+
+def eval_implicit_CTR(model, test_data, test_label):
+
+    predict_test = model.predict(test_data)
+    
+    AUC = roc_auc_score(test_label, predict_test)
+    logloss = log_loss(test_label, predict_test)
+    return AUC, logloss
