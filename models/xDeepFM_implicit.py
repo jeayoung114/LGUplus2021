@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 
 class xDeepFM_implicit(torch.nn.Module):
     def __init__(self, train_data, train_label, valid_data, valid_label, field_dims, embed_dim, mlp_dims, dropout,
-                 cross_layer_sizes, split_half, num_epochs, learning_rate, reg_lambda, batch_size, device):
+                 cross_layer_sizes, split_half, num_epochs, early_stop_trial, learning_rate, reg_lambda, batch_size, device):
         super().__init__()
 
         self.train_data = train_data
@@ -31,6 +31,7 @@ class xDeepFM_implicit(torch.nn.Module):
         self.split_half = split_half
 
         self.num_epochs = num_epochs
+        self.early_stop_trial = early_stop_trial
         self.learning_rate = learning_rate
         self.reg_lambda = reg_lambda
         self.batch_size = batch_size
@@ -65,10 +66,12 @@ class xDeepFM_implicit(torch.nn.Module):
     def fit(self):
         train_loader = DataLoader(range(self.train_data.shape[0]), batch_size=self.batch_size, shuffle=True)
 
+        best_AUC = 0
+        num_trials = 0
         for epoch in range(1, self.num_epochs+1):
             # Train
             self.train()
-            for b, batch_idxes in enumerate(tqdm(train_loader, desc=f'epoch:{epoch}')):
+            for b, batch_idxes in enumerate(train_loader):
                 batch_data = torch.tensor(self.train_data[batch_idxes], dtype=torch.long, device=self.device)
                 batch_labels = torch.tensor(self.train_label[batch_idxes], dtype=torch.float, device=self.device)
 
@@ -80,7 +83,19 @@ class xDeepFM_implicit(torch.nn.Module):
             AUC = roc_auc_score(self.valid_label, pred_array)
             logloss = log_loss(self.valid_label, pred_array)
 
-            print(f'epoch {epoch} train_loss = {loss:.4f} valid_AUC = {AUC} valid_log_loss = {logloss}')
+            if AUC > best_AUC:
+                best_AUC = AUC
+                torch.save(self.state_dict(), f"saves/{self.__class__.__name__}_best_model.pt")
+                num_trials = 0
+            else:
+                num_trials += 1
+
+            if num_trials >= self.early_stop_trial and self.early_stop_trial > 0:
+                print(f'Early stop at epoch:{epoch}')
+                self.restore()
+                break
+
+            print(f'epoch {epoch} train_loss = {loss:.4f} valid_AUC = {AUC:.4f} valid_log_loss = {logloss:.4f}')
         return
 
     def train_model_per_batch(self, batch_data, batch_labels):
@@ -111,6 +126,11 @@ class xDeepFM_implicit(torch.nn.Module):
                 pred_array[batch_idxes] = self.forward(batch_data).cpu().numpy()
 
         return pred_array
+
+    def restore(self):
+        with open(f"saves/{self.__class__.__name__}_best_model.pt", 'rb') as f:
+            state_dict = torch.load(f)
+        self.load_state_dict(state_dict)
 
 
 class CompressedInteractionNetwork(torch.nn.Module):
