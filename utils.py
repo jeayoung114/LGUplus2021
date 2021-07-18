@@ -172,24 +172,43 @@ def load_data_CTR(data_name, use_features, pos_threshold=6):
 
     dict_path = data_path + '_dict'
     if not os.path.exists(dict_path):
-        for index, row in tqdm(movie_data.iterrows(), total=len(movie_data), desc='check genre, country, people', dynamic_ncols=True):
-            genres = row["genre"]
-            coutries = row["country"]
-            people = row["people"]
-            genres = ast.literal_eval(genres)
-            coutries = ast.literal_eval(coutries)
-            people = ast.literal_eval(people)
-            
-            for genre in genres:
-                if all_genre_dict.get(genre) is None:
-                    all_genre_dict[genre] = len(all_genre_dict)
-            for country in coutries:
-                if all_country_dict.get(country) is None:
-                    all_country_dict[country] = len(all_country_dict)
-            for person in people:
-                if all_people_dict.get(person) is None:
-                    all_people_dict[person] = len(all_people_dict)
-        pickle.dump([all_genre_dict, all_country_dict, all_people_dict], open(dict_path, 'wb'), protocol=4)
+        try:
+            if 'small' in data_name:
+                raise Exception('Make small data dictionary')
+            if '2m' in data_name:
+            # https://drive.google.com/file/d/1yY_T_efF0n4JZpyArcEHuhighVzJt954/view?usp=sharing
+                gdd.download_file_from_google_drive(
+                    file_id='1yY_T_efF0n4JZpyArcEHuhighVzJt954',
+                    dest_path=dict_path,
+                    showsize=True,
+                )
+            elif '5m' in data_name: # 5m
+            # https://drive.google.com/file/d/1VBWAiogRzjvp4TgqG5zIMPxj11BuiTS8/view?usp=sharing
+                gdd.download_file_from_google_drive(
+                    file_id='1VBWAiogRzjvp4TgqG5zIMPxj11BuiTS8',
+                    dest_path=data_path,
+                    showsize=True,
+                )
+            all_genre_dict, all_country_dict, all_people_dict = pickle.load(open(dict_path, 'rb'))
+        except:
+            for index, row in tqdm(movie_data.iterrows(), total=len(movie_data), desc='check genre, country, people', dynamic_ncols=True):
+                genres = row["genre"]
+                coutries = row["country"]
+                people = row["people"]
+                genres = ast.literal_eval(genres)
+                coutries = ast.literal_eval(coutries)
+                people = ast.literal_eval(people)
+                
+                for genre in genres:
+                    if all_genre_dict.get(genre) is None:
+                        all_genre_dict[genre] = len(all_genre_dict)
+                for country in coutries:
+                    if all_country_dict.get(country) is None:
+                        all_country_dict[country] = len(all_country_dict)
+                for person in people:
+                    if all_people_dict.get(person) is None:
+                        all_people_dict[person] = len(all_people_dict)
+            pickle.dump([all_genre_dict, all_country_dict, all_people_dict], open(dict_path, 'wb'), protocol=4)
     else:
         all_genre_dict, all_country_dict, all_people_dict = pickle.load(open(dict_path, 'rb'))
 
@@ -258,10 +277,29 @@ def load_data_CTR(data_name, use_features, pos_threshold=6):
 
     array_path = data_path + '_np'
     if not os.path.exists(array_path):
-        train_arr = df_to_array(train)
-        valid_arr = df_to_array(valid)
-        test_arr = df_to_array(test)
-        pickle.dump([train_arr, valid_arr, test_arr], open(array_path, 'wb'), protocol=4)
+        try:
+            if 'small' in data_name:
+                raise Exception('Make small data array')
+            if '2m' in data_name:
+            # https://drive.google.com/file/d/19F-_E6Fs0rYym_NiL_5O0MSTiJlh-OeZ/view?usp=sharing
+                gdd.download_file_from_google_drive(
+                    file_id='19F-_E6Fs0rYym_NiL_5O0MSTiJlh-OeZ',
+                    dest_path=array_path,
+                    showsize=True,
+                )
+            elif '5m' in data_name: # 5m
+            # https://drive.google.com/file/d/1swE9YVLjX3q7tnibmIGyxfzgFm181q66/view?usp=sharing
+                gdd.download_file_from_google_drive(
+                    file_id='1swE9YVLjX3q7tnibmIGyxfzgFm181q66',
+                    dest_path=array_path,
+                    showsize=True,
+                )
+            train_arr, valid_arr, test_arr = pickle.load(open(array_path, 'rb'))
+        except:
+            train_arr = df_to_array(train)
+            valid_arr = df_to_array(valid)
+            test_arr = df_to_array(test)
+            pickle.dump([train_arr, valid_arr, test_arr], open(array_path, 'wb'), protocol=4)
     else:
         train_arr, valid_arr, test_arr = pickle.load(open(array_path, 'rb'))
 
