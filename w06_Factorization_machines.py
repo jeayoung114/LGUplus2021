@@ -6,6 +6,7 @@ from models.DeepFM_implicit import DeepFM_implicit
 from models.xDeepFM_implicit import xDeepFM_implicit
 from models.NFM_implicit import NFM_implicit
 from models.DCN_implicit import DCN_implicit
+from models.DCNV2_implicit import DCNV2_implicit
 from utils import load_data_CTR
 from utils import eval_implicit_CTR
 
@@ -22,8 +23,6 @@ from os.path import join
 warnings.filterwarnings('ignore')
 
 # 결과 재현을 위해 해당 코드에서 사용되는 라이브러리들의 Seed를 고정합니다.
-
-
 def seed_everything(random_seed):
     torch.manual_seed(random_seed)
     torch.cuda.manual_seed(random_seed)
@@ -46,7 +45,9 @@ dataset loading
 """
 # small, 2m, 5m
 dataset = "small"
-train_arr, train_rating, valid_arr, valid_rating, test_arr, test_rating, field_dims = load_data_CTR(dataset)
+use_features = ['user_id', 'item_id', 'people', 'country', 'genre']
+# use_features = ['user_id', 'item_id', 'genre', 'people']
+train_arr, train_rating, valid_arr, valid_rating, test_arr, test_rating, field_dims = load_data_CTR(dataset, use_features, pos_threshold=6)
 print("Train Sample: ", train_arr[0])
 """
 model 학습
@@ -54,18 +55,18 @@ model 학습
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
-start = time.time()  # 시작 시간 저장
-FM = FM_implicit(train_arr, train_rating, valid_arr, valid_rating, field_dims, num_epochs=100, embed_dim=20,
-                 learning_rate=0.01, reg_lambda=0.001, batch_size=1024, early_stop_trial=20, device=device)
-FM.fit()
-FM_AUC, FM_logloss = eval_implicit_CTR(FM, test_arr, test_rating)
-print(f"[FM]\t Test_AUC = {FM_AUC:.4f} Test_logloss = {FM_logloss:.4f}")
-print("time 분 :", (time.time() - start)/60.0)
-print("======================================")
+# start = time.time()  # 시작 시간 저장
+# FM = FM_implicit(train_arr, train_rating, valid_arr, valid_rating, field_dims, num_epochs=100, embed_dim=5,
+#                  learning_rate=0.01, reg_lambda=0.001, batch_size=1024, early_stop_trial=20, device=device)
+# FM.fit()
+# FM_AUC, FM_logloss = eval_implicit_CTR(FM, test_arr, test_rating)
+# print(f"[FM]\t Test_AUC = {FM_AUC:.4f} Test_logloss = {FM_logloss:.4f}")
+# print("time 분 :", (time.time() - start)/60.0)
+# print("======================================")
 
 
 start = time.time()  # 시작 시간 저장
-FFM = FFM_implicit(train_arr, train_rating, valid_arr, valid_rating, field_dims, num_epochs=100, embed_dim=20,
+FFM = FFM_implicit(train_arr, train_rating, valid_arr, valid_rating, field_dims, num_epochs=100, embed_dim=5,
                    learning_rate=0.01, reg_lambda=0.001, batch_size=1024, early_stop_trial=20, device=device)
 FFM.fit()
 FFM_AUC, FFM_logloss = eval_implicit_CTR(FFM, test_arr, test_rating)
@@ -74,54 +75,63 @@ print("time 분 :", (time.time() - start)/60.0)
 print("======================================")
 
 
-start = time.time()  # 시작 시간 저장
-WideAndDeep = WideAndDeep_implicit(train_arr, train_rating, valid_arr, valid_rating, field_dims, num_epochs=100, embed_dim=20,
-                                   mlp_dims=[20, 20], dropout=0.2, learning_rate=0.01, reg_lambda=0.001, batch_size=1024, early_stop_trial=20, device=device)
-WideAndDeep.fit()
-WideAndDeep_AUC, WideAndDeep_logloss = eval_implicit_CTR(WideAndDeep, test_arr, test_rating)
-print(f"[WideAndDeep]\t Test_AUC = {WideAndDeep_AUC:.4f} Test_logloss = {WideAndDeep_logloss:.4f}")
-print("time 분 :", (time.time() - start)/60.0)
-print("======================================")
+# start = time.time()  # 시작 시간 저장
+# WideAndDeep = WideAndDeep_implicit(train_arr, train_rating, valid_arr, valid_rating, field_dims, num_epochs=100, embed_dim=20,
+#                                    mlp_dims=[20, 20], dropout=0.2, learning_rate=0.01, reg_lambda=0.001, batch_size=1024, early_stop_trial=20, device=device)
+# WideAndDeep.fit()
+# WideAndDeep_AUC, WideAndDeep_logloss = eval_implicit_CTR(WideAndDeep, test_arr, test_rating)
+# print(f"[WideAndDeep]\t Test_AUC = {WideAndDeep_AUC:.4f} Test_logloss = {WideAndDeep_logloss:.4f}")
+# print("time 분 :", (time.time() - start)/60.0)
+# print("======================================")
 
 
-start = time.time()  # 시작 시간 저장
-DeepFM = DeepFM_implicit(train_arr, train_rating, valid_arr, valid_rating, field_dims, num_epochs=100, embed_dim=20,
-                         mlp_dims=[20, 20], dropout=0.2, learning_rate=0.01, reg_lambda=0.001, batch_size=1024, early_stop_trial=20, device=device)
-DeepFM.fit()
-DeepFM_AUC, DeepFM_logloss = eval_implicit_CTR(DeepFM, test_arr, test_rating)
-print(f"[DeepFM]\t Test_AUC = {DeepFM_AUC:.4f} Test_logloss = {DeepFM_logloss:.4f}")
-print("time 분 :", (time.time() - start)/60.0)
-print("======================================")
+# start = time.time()  # 시작 시간 저장
+# DeepFM = DeepFM_implicit(train_arr, train_rating, valid_arr, valid_rating, field_dims, num_epochs=100, embed_dim=20,
+#                          mlp_dims=[20, 20], dropout=0.2, learning_rate=0.01, reg_lambda=0.001, batch_size=1024, early_stop_trial=20, device=device)
+# DeepFM.fit()
+# DeepFM_AUC, DeepFM_logloss = eval_implicit_CTR(DeepFM, test_arr, test_rating)
+# print(f"[DeepFM]\t Test_AUC = {DeepFM_AUC:.4f} Test_logloss = {DeepFM_logloss:.4f}")
+# print("time 분 :", (time.time() - start)/60.0)
+# print("======================================")
 
 
-start = time.time()  # 시작 시간 저장
-xDeepFM = xDeepFM_implicit(train_arr, train_rating, valid_arr, valid_rating, field_dims, num_epochs=100, embed_dim=20, cross_layer_sizes=(20, 20), split_half=False,
-                           mlp_dims=[20, 20], dropout=0.2, learning_rate=0.01, reg_lambda=0.001, batch_size=1024, early_stop_trial=20, device=device)
-xDeepFM.fit()
-xDeepFM_AUC, xDeepFM_logloss = eval_implicit_CTR(xDeepFM, test_arr, test_rating)
-print(f"[xDeepFM]\t Test_AUC = {xDeepFM_AUC:.4f} Test_logloss = {xDeepFM_logloss:.4f}")
-print("time 분 :", (time.time() - start)/60.0)
-print("======================================")
+# start = time.time()  # 시작 시간 저장
+# xDeepFM = xDeepFM_implicit(train_arr, train_rating, valid_arr, valid_rating, field_dims, num_epochs=100, embed_dim=20, cross_layer_sizes=(20, 20), split_half=False,
+#                            mlp_dims=[20, 20], dropout=0.2, learning_rate=0.01, reg_lambda=0.001, batch_size=1024, early_stop_trial=20, device=device)
+# xDeepFM.fit()
+# xDeepFM_AUC, xDeepFM_logloss = eval_implicit_CTR(xDeepFM, test_arr, test_rating)
+# print(f"[xDeepFM]\t Test_AUC = {xDeepFM_AUC:.4f} Test_logloss = {xDeepFM_logloss:.4f}")
+# print("time 분 :", (time.time() - start)/60.0)
+# print("======================================")
 
 
-start = time.time()  # 시작 시간 저장
-NFM = NFM_implicit(train_arr, train_rating, valid_arr, valid_rating, field_dims, num_epochs=100, embed_dim=20,
-                   mlp_dims=[20, 20], dropout=0.2, learning_rate=0.01, reg_lambda=0.001, batch_size=1024, early_stop_trial=20, device=device)
-NFM.fit()
-NFM_AUC, NFM_logloss = eval_implicit_CTR(NFM, test_arr, test_rating)
-print(f"[NFM]\t Test_AUC = {NFM_AUC:.4f} Test_logloss = {NFM_logloss:.4f}")
-print("time 분 :", (time.time() - start)/60.0)
-print("======================================")
+# start = time.time()  # 시작 시간 저장
+# NFM = NFM_implicit(train_arr, train_rating, valid_arr, valid_rating, field_dims, num_epochs=100, embed_dim=20,
+#                    mlp_dims=[20, 20], dropout=0.2, learning_rate=0.01, reg_lambda=0.001, batch_size=1024, early_stop_trial=20, device=device)
+# NFM.fit()
+# NFM_AUC, NFM_logloss = eval_implicit_CTR(NFM, test_arr, test_rating)
+# print(f"[NFM]\t Test_AUC = {NFM_AUC:.4f} Test_logloss = {NFM_logloss:.4f}")
+# print("time 분 :", (time.time() - start)/60.0)
+# print("======================================")
 
-start = time.time()  # 시작 시간 저장
-DCN = DCN_implicit(train_arr, train_rating, valid_arr, valid_rating, field_dims, num_epochs=100, embed_dim=20, num_layers=3,
-                   mlp_dims=[20, 20], dropout=0.2, learning_rate=0.01, reg_lambda=0.001, batch_size=1024, early_stop_trial=20, device=device)
-DCN.fit()
-DCN_AUC, DCN_logloss = eval_implicit_CTR(DCN, test_arr, test_rating)
-print(f"[DCN]\t Test_AUC = {DCN_AUC:.4f} Test_logloss = {DCN_logloss:.4f}")
-print("time 분 :", (time.time() - start)/60.0)
-print("======================================")
+# start = time.time()  # 시작 시간 저장
+# DCN = DCN_implicit(train_arr, train_rating, valid_arr, valid_rating, field_dims, num_epochs=100, embed_dim=20, num_layers=3,
+#                    mlp_dims=[20, 20], dropout=0.2, learning_rate=0.01, reg_lambda=0.001, batch_size=1024, early_stop_trial=20, device=device)
+# DCN.fit()
+# DCN_AUC, DCN_logloss = eval_implicit_CTR(DCN, test_arr, test_rating)
+# print(f"[DCN]\t Test_AUC = {DCN_AUC:.4f} Test_logloss = {DCN_logloss:.4f}")
+# print("time 분 :", (time.time() - start)/60.0)
+# print("======================================")
 
+
+# start = time.time()  # 시작 시간 저장
+# DCNV2 = DCNV2_implicit(train_arr, train_rating, valid_arr, valid_rating, field_dims, num_epochs=100, embed_dim=20, num_layers=3,
+#                    mlp_dims=[20, 20], dropout=0.2, learning_rate=0.01, reg_lambda=0.001, batch_size=1024, early_stop_trial=20, device=device)
+# DCNV2.fit()
+# DCNV2_AUC, DCNV2_logloss = eval_implicit_CTR(DCNV2, test_arr, test_rating)
+# print(f"[DCNV2]\t Test_AUC = {DCNV2_AUC:.4f} Test_logloss = {DCNV2_logloss:.4f}")
+# print("time 분 :", (time.time() - start)/60.0)
+# print("======================================")
 
 print(f"[FM]\t Test_AUC = {FM_AUC:.4f} Test_logloss = {FM_logloss:.4f}")
 print(f"[FFM]\t Test_AUC = {FFM_AUC:.4f} Test_logloss = {FFM_logloss:.4f}")
@@ -130,3 +140,4 @@ print(f"[DeepFM]\t Test_AUC = {DeepFM_AUC:.4f} Test_logloss = {DeepFM_logloss:.4
 print(f"[xDeepFM]\t Test_AUC = {xDeepFM_AUC:.4f} Test_logloss = {xDeepFM_logloss:.4f}")
 print(f"[NFM]\t Test_AUC = {NFM_AUC:.4f} Test_logloss = {NFM_logloss:.4f}")
 print(f"[DCN]\t Test_AUC = {DCN_AUC:.4f} Test_logloss = {DCN_logloss:.4f}")
+print(f"[DCNV2]\t Test_AUC = {DCNV2_AUC:.4f} Test_logloss = {DCNV2_logloss:.4f}")

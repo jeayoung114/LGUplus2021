@@ -57,6 +57,7 @@ class NFM_implicit(torch.nn.Module):
         """
         :param x: Long tensor of size ``(batch_size, num_fields)``
         """
+        # cross_term: (batch_size, emb_dim)
         cross_term = self.fm(self.embedding(x))
         x = self.linear(x) + self.mlp(cross_term)
         output = torch.sigmoid(x.squeeze(1))

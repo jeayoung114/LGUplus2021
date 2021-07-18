@@ -35,22 +35,29 @@ class FM_implicit(torch.nn.Module):
         self.build_graph()
 
     def build_graph(self):
-        self.embedding = FeaturesEmbedding(self.field_dims, self.embed_dim)
+        # 편향 및 단일 필드 계산을 위한 모듈 선언
         self.linear = FeaturesLinear(self.field_dims)
-        self.fm = FactorizationMachine(reduce_sum=True)
+        # 두 필드 간의 계산을 위한 모듈 선언
+        self.embedding = FeaturesEmbedding(self.field_dims, self.embed_dim)
+        self.fm = FactorizationMachine()
 
-        # 최적화 방법 설정
+        # Loss 설정
         self.criterion = nn.BCELoss()
+        # 최적화 방법 설정
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.reg_lambda)
 
         # 모델을 device로 보냄
         self.to(self.device)
 
     def forward(self, x):
-        """
-        :param x: Long tensor of size ``(batch_size, num_fields)``
-        """
-        x = self.linear(x) + self.fm(self.embedding(x))
+        # x: (batch_size, num_fields)
+
+        # 단일 필드 스칼라 계산 + 편향 추가
+        first = self.linear(x) 
+        # 두 필드 벡터 간의 계산
+        second = self.fm(self.embedding(x))
+        
+        x = first + second
         output = torch.sigmoid(x.squeeze(1))
         return output
 
@@ -63,8 +70,8 @@ class FM_implicit(torch.nn.Module):
             # Train
             self.train()
             for b, batch_idxes in enumerate(train_loader):
-                batch_data = torch.tensor(self.train_data[batch_idxes], dtype=torch.long, device=self.device)
-                batch_labels = torch.tensor(self.train_label[batch_idxes], dtype=torch.float, device=self.device)
+                batch_data = self.train_data[batch_idxes]
+                batch_labels = self.train_label[batch_idxes]
 
                 loss = self.train_model_per_batch(batch_data, batch_labels)
 
@@ -90,17 +97,23 @@ class FM_implicit(torch.nn.Module):
         return
 
     def train_model_per_batch(self, batch_data, batch_labels):
-        # zero grad
+        # 텐서 변환
+        batch_data = torch.LongTensor(batch_data).to(self.device)
+        batch_labels = torch.FloatTensor(batch_labels).to(self.device)
+
+        # grad 초기화
         self.optimizer.zero_grad()
 
-        # model forwrad
+        # 모델 forwrad
         logits = self.forward(batch_data)
 
-        # backward
+        # loss 구함
         loss = self.criterion(logits, batch_labels)
+        
+        # 역전파
         loss.backward()
 
-        # step
+        # 가중치 업데이트
         self.optimizer.step()
 
         return loss
@@ -109,7 +122,6 @@ class FM_implicit(torch.nn.Module):
         self.eval()
 
         pred_data_loader = DataLoader(range(pred_data.shape[0]), batch_size=self.batch_size, shuffle=False)
-
         pred_array = np.zeros(pred_data.shape[0])
         for b, batch_idxes in enumerate(pred_data_loader):
             batch_data = torch.tensor(pred_data[batch_idxes], dtype=torch.long, device=self.device)
@@ -123,16 +135,27 @@ class FM_implicit(torch.nn.Module):
             state_dict = torch.load(f)
         self.load_state_dict(state_dict)
 
-class FactorizationMachine(torch.nn.Module):
+class FeaturesLinear(torch.nn.Module):
+    def __init__(self, field_dims, output_dim=1):
+        super().__init__()
+        self.fc = torch.nn.Embedding(sum(field_dims), output_dim)
+        self.bias = torch.nn.Parameter(torch.zeros((output_dim,)))
+        # field_dims = [20, 30, 40, 60] -> self.offsets = [0, 20, 50, 90]
+        self.offsets = np.array((0, *np.cumsum(field_dims)[:-1]), dtype=np.long)
 
+    def forward(self, x):
+        # x: (batch_size, num_fields)
+        # 필드 별 시작 값(offset) 추가
+        x = x + x.new_tensor(self.offsets).unsqueeze(0)
+        return torch.sum(self.fc(x), dim=1) + self.bias
+
+class FactorizationMachine(torch.nn.Module):
     def __init__(self, reduce_sum=True):
         super().__init__()
         self.reduce_sum = reduce_sum
 
     def forward(self, x):
-        """
-        :param x: Float tensor of size ``(batch_size, num_fields, embed_dim)``
-        """
+        # x: (batch_size, num_fields, embed_dim)
         square_of_sum = torch.sum(x, dim=1) ** 2
         sum_of_square = torch.sum(x ** 2, dim=1)
         ix = square_of_sum - sum_of_square
@@ -140,9 +163,7 @@ class FactorizationMachine(torch.nn.Module):
             ix = torch.sum(ix, dim=1, keepdim=True)
         return 0.5 * ix
 
-
 class FeaturesEmbedding(torch.nn.Module):
-
     def __init__(self, field_dims, embed_dim):
         super().__init__()
         self.embedding = torch.nn.Embedding(sum(field_dims), embed_dim)
@@ -150,24 +171,9 @@ class FeaturesEmbedding(torch.nn.Module):
         torch.nn.init.xavier_uniform_(self.embedding.weight.data)
 
     def forward(self, x):
-        """
-        :param x: Long tensor of size ``(batch_size, num_fields)``
-        """
+        # x: (batch_size, num_fields)
+        # 필드 별 시작 값(offset) 추가
         x = x + x.new_tensor(self.offsets).unsqueeze(0)
         return self.embedding(x)
 
 
-class FeaturesLinear(torch.nn.Module):
-
-    def __init__(self, field_dims, output_dim=1):
-        super().__init__()
-        self.fc = torch.nn.Embedding(sum(field_dims), output_dim)
-        self.bias = torch.nn.Parameter(torch.zeros((output_dim,)))
-        self.offsets = np.array((0, *np.cumsum(field_dims)[:-1]), dtype=np.long)
-
-    def forward(self, x):
-        """
-        :param x: Long tensor of size ``(batch_size, num_fields)``
-        """
-        x = x + x.new_tensor(self.offsets).unsqueeze(0)
-        return torch.sum(self.fc(x), dim=1) + self.bias

@@ -23,6 +23,7 @@ class DeepFM_implicit(torch.nn.Module):
         self.valid_label = valid_label
         self.field_dims = field_dims
         self.embed_dim = embed_dim
+        self.embed_output_dim = len(field_dims) * embed_dim
         self.mlp_dims = mlp_dims
         self.dropout = dropout
 
@@ -37,25 +38,31 @@ class DeepFM_implicit(torch.nn.Module):
         self.build_graph()
 
     def build_graph(self):
+        # 편향 및 단일 필드 계산을 위한 모듈 선언
         self.linear = FeaturesLinear(self.field_dims)
-        self.fm = FactorizationMachine(reduce_sum=True)
+        # 두 필드 간의 계산을 위한 모듈 선언
         self.embedding = FeaturesEmbedding(self.field_dims, self.embed_dim)
-        self.embed_output_dim = len(self.field_dims) * self.embed_dim
+        self.fm = FactorizationMachine()
         self.mlp = MultiLayerPerceptron(self.embed_output_dim, self.mlp_dims, self.dropout)
 
-        # 최적화 방법 설정
+        # Loss 설정
         self.criterion = nn.BCELoss()
+        # 최적화 방법 설정
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.reg_lambda)
 
         # 모델을 device로 보냄
         self.to(self.device)
 
     def forward(self, x):
-        """
-        :param x: Long tensor of size ``(batch_size, num_fields)``
-        """
+        # x: (batch_size, num_fields) -> embed_x: ((batch_size, num_fields, embed_dim)
         embed_x = self.embedding(x)
-        x = self.linear(x) + self.fm(embed_x) + self.mlp(embed_x.view(-1, self.embed_output_dim))
+
+        # FM과 동일(first + second) 
+        FM = self.linear(x) + self.fm(embed_x)
+
+        # Wide & Deep에서 Deep 부분만 (Wide는 FM과 중복됨)
+        Deep = self.mlp(embed_x.view(-1, self.embed_output_dim))
+        x = FM + Deep
         output = torch.sigmoid(x.squeeze(1))
         return output
 

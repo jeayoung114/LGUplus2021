@@ -154,7 +154,7 @@ class MultiLayerPerceptron(torch.nn.Module):
         return self.mlp(x)
 
 class CrossNetworkMMoE(nn.Module):
-    def __init__(self, in_features, low_rank=32, num_experts=4, layer_num=2, device='cpu'):
+    def __init__(self, in_features, low_rank=32, num_experts=4, layer_num=2):
         super(CrossNetworkMMoE, self).__init__()
         self.layer_num = layer_num
         self.num_experts = num_experts
@@ -176,8 +176,6 @@ class CrossNetworkMMoE(nn.Module):
 
         for i in range(len(self.bias)):
             nn.init.zeros_(self.bias[i])
-
-        self.to(device)
 
     def forward(self, x):
         x_0 = x.unsqueeze(2)

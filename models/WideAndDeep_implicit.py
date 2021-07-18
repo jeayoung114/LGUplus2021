@@ -23,6 +23,7 @@ class WideAndDeep_implicit(torch.nn.Module):
         self.valid_label = valid_label
         self.field_dims = field_dims
         self.embed_dim = embed_dim
+        self.embed_output_dim = len(field_dims) * embed_dim
         self.mlp_dims = mlp_dims
         self.dropout = dropout
 
@@ -37,24 +38,27 @@ class WideAndDeep_implicit(torch.nn.Module):
         self.build_graph()
 
     def build_graph(self):
+        # Wide 부분 계산을 위한 모듈 선언
         self.linear = FeaturesLinear(self.field_dims)
+        # Deep 부분 계산을 위한 모듈 선언
         self.embedding = FeaturesEmbedding(self.field_dims, self.embed_dim)
-        self.embed_output_dim = len(self.field_dims) * self.embed_dim
         self.mlp = MultiLayerPerceptron(self.embed_output_dim, self.mlp_dims, self.dropout)
 
         # 최적화 방법 설정
         self.criterion = nn.BCELoss()
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.reg_lambda)
-
         # 모델을 device로 보냄
         self.to(self.device)
 
     def forward(self, x):
-        """
-        :param x: Long tensor of size ``(batch_size, num_fields)``
-        """
-        embed_x = self.embedding(x)
-        x = self.linear(x) + self.mlp(embed_x.view(-1, self.embed_output_dim))
+        # x: (batch_size, num_fields)
+        # FM에서 first와 동일 (단일 필드에 대한 계산)
+        wide = self.linear(x) 
+
+        # FM에서 필드 벡터 간의 계산을 대체: self.fm(self.embedding(x))
+        deep = self.mlp(self.embedding(x).view(-1, self.embed_output_dim))
+        
+        x = wide + deep
         output = torch.sigmoid(x.squeeze(1))
         return output
 
@@ -127,30 +131,7 @@ class WideAndDeep_implicit(torch.nn.Module):
             state_dict = torch.load(f)
         self.load_state_dict(state_dict)
 
-class MultiLayerPerceptron(torch.nn.Module):
-
-    def __init__(self, input_dim, embed_dims, dropout, output_layer=True):
-        super().__init__()
-        layers = list()
-        for embed_dim in embed_dims:
-            layers.append(torch.nn.Linear(input_dim, embed_dim))
-            layers.append(torch.nn.BatchNorm1d(embed_dim))
-            layers.append(torch.nn.ReLU())
-            layers.append(torch.nn.Dropout(p=dropout))
-            input_dim = embed_dim
-        if output_layer:
-            layers.append(torch.nn.Linear(input_dim, 1))
-        self.mlp = torch.nn.Sequential(*layers)
-
-    def forward(self, x):
-        """
-        :param x: Float tensor of size ``(batch_size, embed_dim)``
-        """
-        return self.mlp(x)
-
-
 class FeaturesEmbedding(torch.nn.Module):
-
     def __init__(self, field_dims, embed_dim):
         super().__init__()
         self.embedding = torch.nn.Embedding(sum(field_dims), embed_dim)
@@ -158,24 +139,40 @@ class FeaturesEmbedding(torch.nn.Module):
         torch.nn.init.xavier_uniform_(self.embedding.weight.data)
 
     def forward(self, x):
-        """
-        :param x: Long tensor of size ``(batch_size, num_fields)``
-        """
+        # x: (batch_size, num_fields)
+        # 필드 별 시작 값(offset) 추가
         x = x + x.new_tensor(self.offsets).unsqueeze(0)
         return self.embedding(x)
 
+class MultiLayerPerceptron(torch.nn.Module):
+    def __init__(self, input_dim, embed_dims, dropout, output_layer=True):
+        super().__init__()
+        layers = list()
+        # 만약 embed_dims = [10, 20, 30] 이라면, (Input-> 10 -> 20 -> 30) 의 MLP 구조를 사용
+        for embed_dim in embed_dims:
+            layers.append(torch.nn.Linear(input_dim, embed_dim))
+            layers.append(torch.nn.BatchNorm1d(embed_dim))
+            layers.append(torch.nn.ReLU())
+            layers.append(torch.nn.Dropout(p=dropout))
+            input_dim = embed_dim
+        # 만약 embed_dims = [10, 20, 30] 이라면, (Input-> 10 -> 20 -> 30 -> 1) 의 MLP 구조를 사용
+        if output_layer:
+            layers.append(torch.nn.Linear(input_dim, 1))
+        self.mlp = torch.nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.mlp(x)
 
 class FeaturesLinear(torch.nn.Module):
-
     def __init__(self, field_dims, output_dim=1):
         super().__init__()
         self.fc = torch.nn.Embedding(sum(field_dims), output_dim)
         self.bias = torch.nn.Parameter(torch.zeros((output_dim,)))
+        # field_dims = [20, 30, 40, 60] -> self.offsets = [0, 20, 50, 90]
         self.offsets = np.array((0, *np.cumsum(field_dims)[:-1]), dtype=np.long)
 
     def forward(self, x):
-        """
-        :param x: Long tensor of size ``(batch_size, num_fields)``
-        """
+        # x: (batch_size, num_fields)
+        # 필드 별 시작 값(offset) 추가
         x = x + x.new_tensor(self.offsets).unsqueeze(0)
         return torch.sum(self.fc(x), dim=1) + self.bias

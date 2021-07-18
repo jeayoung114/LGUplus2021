@@ -3,12 +3,14 @@ import math
 import ast
 import numpy as np
 import pandas as pd
+import pickle
 
 from scipy import sparse
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, roc_auc_score, log_loss
 from google_drive_downloader import GoogleDriveDownloader as gdd
 from tqdm import tqdm
+from IPython import embed
 
 
 # 2d array를 dictionary로 만듦
@@ -51,15 +53,15 @@ def load_data(data_name, implicit=True):
                 dest_path=data_path,
             )
         elif '2m' in data_name:
-            # https://drive.google.com/file/d/1f2bzvZw87Gu2yMpNm6EnxE6uHJYbbBUn/view?usp=sharing
+            # https://drive.google.com/file/d/1zqh0MSl3eNeW6NP0O5aotSUM6Ihg47qz/view?usp=sharing
             gdd.download_file_from_google_drive(
-                file_id='1f2bzvZw87Gu2yMpNm6EnxE6uHJYbbBUn',
+                file_id='1zqh0MSl3eNeW6NP0O5aotSUM6Ihg47qz',
                 dest_path=data_path,
             )
         else: # 5m
-            # https://drive.google.com/file/d/19ft9n-gO3rJYKmkVyejD3H94IHGlQVzU/view?usp=sharing
+            # https://drive.google.com/file/d/1WevyoBY_E7mKd2RwL1_GAgeDgtJQOlue/view?usp=sharing
             gdd.download_file_from_google_drive(
-                file_id='19ft9n-gO3rJYKmkVyejD3H94IHGlQVzU',
+                file_id='1WevyoBY_E7mKd2RwL1_GAgeDgtJQOlue',
                 dest_path=data_path,
             )
         print("데이터 다운로드 완료!")
@@ -121,7 +123,7 @@ def load_data(data_name, implicit=True):
     return train.toarray(), valid.toarray(), test.toarray(), idx2title
     # return train, valid, test, idx2title
 
-def load_data_CTR(data_name, pos_threshold=6):
+def load_data_CTR(data_name, use_features, pos_threshold=6):
     data_path = './data/%s'%(data_name)
     if not os.path.exists(data_path):
         if 'small' in data_name:
@@ -129,28 +131,31 @@ def load_data_CTR(data_name, pos_threshold=6):
             gdd.download_file_from_google_drive(
                 file_id='1_HFBNRk-FUOO1nquQVfWbD1IiqnWNzOW',
                 dest_path=data_path,
+                showsize=True,
             )
         elif '2m' in data_name:
-            # https://drive.google.com/file/d/1f2bzvZw87Gu2yMpNm6EnxE6uHJYbbBUn/view?usp=sharing
+            # https://drive.google.com/file/d/1hGtY8X9ERgwgUH37CIx-o7lryY6V286e/view?usp=sharing
             gdd.download_file_from_google_drive(
-                file_id='1f2bzvZw87Gu2yMpNm6EnxE6uHJYbbBUn',
+                file_id='1hGtY8X9ERgwgUH37CIx-o7lryY6V286e',
                 dest_path=data_path,
+                showsize=True,
             )
         else: # 5m
-            # https://drive.google.com/file/d/19ft9n-gO3rJYKmkVyejD3H94IHGlQVzU/view?usp=sharing
+            # https://drive.google.com/file/d/1C-qJgsu5cvzZ3ajcXCknG6tHwG_OC4lg/view?usp=sharing
             gdd.download_file_from_google_drive(
-                file_id='19ft9n-gO3rJYKmkVyejD3H94IHGlQVzU',
+                file_id='1C-qJgsu5cvzZ3ajcXCknG6tHwG_OC4lg',
                 dest_path=data_path,
+                showsize=True,
             )
         print("데이터 다운로드 완료!")
 
     # 데이터셋 불러오기
     column_names = ['user_id', 'item_id', 'rating', 'timestamp', 'title', 'people', 'country', 'genre']
     movie_data = pd.read_csv(data_path, names=column_names)
+    movie_data = movie_data.fillna('[]')
 
     # 평점이 X점 이상인 데이터는 1로, 나머지는 0으로 설정한다.
     movie_data['rating'] = movie_data['rating'].apply(lambda x: 1 if x >= pos_threshold else 0)
-
 
     # 전체 데이터셋의 user, item 수 확인
     user_list = list(movie_data['user_id'].unique())
@@ -165,23 +170,28 @@ def load_data_CTR(data_name, pos_threshold=6):
     all_country_dict = {'None': 0}
     all_people_dict = {'None': 0}
 
-    for index, row in tqdm(movie_data.iterrows(), total=len(movie_data), desc='check genre, country, people'):
-        genres = row["genre"]
-        coutries = row["country"]
-        people = row["people"]
-        genres = ast.literal_eval(genres)
-        coutries = ast.literal_eval(coutries)
-        people = ast.literal_eval(people)
-        
-        for genre in genres:
-            if all_genre_dict.get(genre) is None:
-                all_genre_dict[genre] = len(all_genre_dict)
-        for country in coutries:
-            if all_country_dict.get(country) is None:
-                all_country_dict[country] = len(all_country_dict)
-        for person in people:
-            if all_people_dict.get(person) is None:
-                all_people_dict[person] = len(all_people_dict)
+    dict_path = data_path + '_dict'
+    if not os.path.exists(dict_path):
+        for index, row in tqdm(movie_data.iterrows(), total=len(movie_data), desc='check genre, country, people', dynamic_ncols=True):
+            genres = row["genre"]
+            coutries = row["country"]
+            people = row["people"]
+            genres = ast.literal_eval(genres)
+            coutries = ast.literal_eval(coutries)
+            people = ast.literal_eval(people)
+            
+            for genre in genres:
+                if all_genre_dict.get(genre) is None:
+                    all_genre_dict[genre] = len(all_genre_dict)
+            for country in coutries:
+                if all_country_dict.get(country) is None:
+                    all_country_dict[country] = len(all_country_dict)
+            for person in people:
+                if all_people_dict.get(person) is None:
+                    all_people_dict[person] = len(all_people_dict)
+        pickle.dump([all_genre_dict, all_country_dict, all_people_dict], open(dict_path, 'wb'), protocol=4)
+    else:
+        all_genre_dict, all_country_dict, all_people_dict = pickle.load(open(dict_path, 'rb'))
 
     num_genres = len(all_genre_dict)
     num_countries = len(all_country_dict)
@@ -206,42 +216,65 @@ def load_data_CTR(data_name, pos_threshold=6):
     train, valid = train_test_split(train_valid, test_size=0.1, stratify = train_valid['rating'], random_state = 1234)
 
     # 전체 데이터셋을 돌면서 matrix 생성하는 함수를 정의합니다.
-    num_fields = 5 # 사용자, 항목, 장르_1, 국가_1, 배우_1
+    num_fields = len(use_features)
     def df_to_array(df):
         final_array = np.zeros((len(df), num_fields))
-        for index, (_, row) in tqdm(enumerate(df.iterrows()), total=len(df), desc='convert df to array'):
-            # user_id
-            user_id = row["user_id"]
+        for index, (_, row) in tqdm(enumerate(df.iterrows()), total=len(df), desc='convert df to array', dynamic_ncols=True):
+            features = []
 
-            # item_id
-            item_id = row["item_id"]
+            for feature in use_features:
+                # user_id
+                if feature == "user_id":
+                    user_id = row["user_id"]
+                    features.append(user_id)
+                # item_id
+                if feature == "item_id":
+                    item_id = row["item_id"]
+                    features.append(item_id)
+                # genre
+                if feature == "genre":
+                    genres = row["genre"]
+                    genres = ast.literal_eval(genres)
+                    genre_id = all_genre_dict[genres[0]] if len(genres) > 0 else 0
+                    features.append(genre_id)
 
-            # genre
-            genres = row["genre"]
-            genres = ast.literal_eval(genres)
-            genre_id = all_genre_dict[genres[0]] if len(genres) > 0 else 0
+                # country
+                if feature == "country":
+                    coutries = row["country"]
+                    coutries = ast.literal_eval(coutries)
+                    country_id = all_country_dict[coutries[0]] if len(coutries) > 0 else 0
+                    features.append(country_id)
 
-            # country
-            coutries = row["country"]
-            coutries = ast.literal_eval(coutries)
-            country_id = all_country_dict[coutries[0]] if len(coutries) > 0 else 0
-
-            # people
-            people = row["people"]
-            people = ast.literal_eval(people)
-            people_id = all_people_dict[people[0]] if len(people) > 0 else 0
+                # people
+                if feature == "people":
+                    people = row["people"]
+                    people = ast.literal_eval(people)
+                    people_id = all_people_dict[people[0]] if len(people) > 0 else 0
+                    features.append(people_id)
             
-            final_array[index] = [user_id, item_id, genre_id, country_id, people_id]
+            final_array[index] = features
 
         return final_array
 
-    train_arr = df_to_array(train)
+    array_path = data_path + '_np'
+    if not os.path.exists(array_path):
+        train_arr = df_to_array(train)
+        valid_arr = df_to_array(valid)
+        test_arr = df_to_array(test)
+        pickle.dump([train_arr, valid_arr, test_arr], open(array_path, 'wb'), protocol=4)
+    else:
+        train_arr, valid_arr, test_arr = pickle.load(open(array_path, 'rb'))
+
     train_rating = train['rating'].values
-    valid_arr = df_to_array(valid)
     valid_rating = valid['rating'].values
-    test_arr = df_to_array(test)
     test_rating = test['rating'].values
-    field_dims = [num_users, num_items, num_genres, num_countries, num_people]
+    field_dims = []
+    for feature in use_features:
+        if feature == 'user_id': field_dims.append(num_users)
+        if feature == 'item_id': field_dims.append(num_items)
+        if feature == 'genre': field_dims.append(num_genres)
+        if feature == 'country': field_dims.append(num_countries)
+        if feature == 'people': field_dims.append(num_people)
 
     return train_arr, train_rating, valid_arr, valid_rating, test_arr, test_rating, field_dims
 
