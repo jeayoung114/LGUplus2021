@@ -43,10 +43,14 @@ class TransRec_sequential(torch.nn.Module):
         self.build_graph()
 
     def build_graph(self):
+        # 사용자 임베딩
         self.user_emb = nn.Embedding(self.user_num, self.emb_dim)
+        # 항목 임베딩
         self.item_emb = nn.Embedding(self.item_num, self.emb_dim)
 
+        # 항목별 편향
         self.Beta = nn.Parameter(torch.zeros(self.item_num, 1))
+        # 시간에 대한 편향
         self.T = nn.Parameter(torch.zeros(1, self.emb_dim))
 
         # Loss 설정
@@ -59,22 +63,31 @@ class TransRec_sequential(torch.nn.Module):
 
     def forward(self, user_id, last_item, pos_item=None, neg_item=None, item_indices=None):
         
+        # 사용자 임베딩
         tu = self.user_emb(user_id)
+        # 마지막 항목 임베딩
         last_item_emb = self.item_emb(last_item)
 
-        tu = torch.nn.functional.normalize(tu, p=2, dim=-1)
-        last_item_emb = torch.nn.functional.normalize(last_item_emb, p=2, dim=-1)
+        # unit ball 안에 있도록 강제
+        last_l2norm = torch.clamp(torch.linalg.norm(last_item_emb, dim=-1, keepdim=True), min=1)
+        last_item_emb = last_item_emb / last_l2norm
 
+        # 사용자와 마지막 항목을 통한 현재 벡터
         output = tu + self.T + last_item_emb
 
         if pos_item is not None:
+            # 다음 항목 임베딩
             pos_emb = self.item_emb(pos_item)
-            pos_emb = torch.nn.functional.normalize(pos_emb, p=2, dim=-1)
+            pos_l2norm = torch.clamp(torch.linalg.norm(pos_emb, dim=-1, keepdim=True), min=1)
+            pos_emb = pos_emb / pos_l2norm
+            # 항목별 편향
             bias_pos = self.Beta[pos_item]
+            # 최종 점수
             pos_score = bias_pos - torch.dist(output, pos_emb, p=2)
 
             neg_emb = self.item_emb(neg_item)
-            neg_emb = torch.nn.functional.normalize(neg_emb, p=2, dim=-1)
+            neg_l2norm = torch.clamp(torch.linalg.norm(neg_emb, dim=-1, keepdim=True), min=1)
+            neg_emb = neg_emb / neg_l2norm
             bias_neg = self.Beta[neg_item]
             neg_score = bias_neg - torch.dist(output, neg_emb, p=2)
 
@@ -82,7 +95,9 @@ class TransRec_sequential(torch.nn.Module):
 
         if item_indices is not None:
             item_embs = self.item_emb(item_indices)  # (U, I, C)
-            item_embs = torch.nn.functional.normalize(item_embs, p=2, dim=-1)
+            item_l2norm = torch.clamp(torch.linalg.norm(item_embs, dim=-1, keepdim=True), min=1)
+            item_embs = item_embs / item_l2norm
+
             bias_item = self.Beta[item_indices]
 
             score = bias_item - torch.dist(output, item_embs, p=2)                       

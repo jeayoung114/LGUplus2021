@@ -49,11 +49,12 @@ class BERTRec_sequential(torch.nn.Module):
         self.build_graph()
 
     def build_graph(self):
+        # BERT 정의 ()
         self.bert = BERT(self.maxlen, self.item_num, self.n_layers, self.heads, self.hidden)
-        self.out = nn.Linear(self.bert.hidden, self.item_num + 1)
+        self.out = nn.Linear(self.bert.hidden, self.item_num + 1) # padding 값은 0으로 설정
 
         # Loss 설정
-        self.criterion = nn.CrossEntropyLoss(ignore_index=0)
+        self.criterion = nn.CrossEntropyLoss(ignore_index=0) # padding은 무시
 
         # 최적화 방법 설정
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate, weight_decay=self.reg_lambda)
@@ -62,8 +63,9 @@ class BERTRec_sequential(torch.nn.Module):
         self.to(self.device)
 
     def forward(self, x):
-        # x = (batch, seq_len)
+        # x = (batch, seq_len) -> (batch, seq_len, bert_dim)
         x = self.bert(x)
+        # self.out = (batch, seq_len, item_num + 1)
         return self.out(x)
 
     def fit(self):
@@ -144,7 +146,7 @@ class BERTRec_sequential(torch.nn.Module):
             tokens = np.zeros(shape=(len(log_seqs), self.maxlen), dtype=np.int64)
 
             tokens[:, :-1] = log_seqs[:, :-1]
-            tokens += tokens.astype(np.bool).astype(np.long)
+            tokens += tokens.astype(np.bool).astype(np.long) # 0 부터 시작 -> 1부터 시작
             tokens[:, -1] = self.mask_token
             tokens = torch.LongTensor(tokens).to(self.device)
 
@@ -187,19 +189,7 @@ class BERT(nn.Module):
 
 
 class BERTEmbedding(nn.Module):
-    """
-    BERT Embedding which is consisted with under features
-        1. TokenEmbedding : normal embedding matrix
-        2. PositionalEmbedding : adding positional information using sin, cos
-        sum of all these features are output of BERTEmbedding
-    """
-
     def __init__(self, vocab_size, embed_size, maxlen, dropout=0.1):
-        """
-        :param vocab_size: total vocab size
-        :param embed_size: embedding size of token embedding
-        :param dropout: dropout rate
-        """
         super().__init__()
         self.token = TokenEmbedding(vocab_size=vocab_size, embed_size=embed_size)
         self.position = PositionalEmbedding(maxlen=maxlen, d_model=embed_size)
@@ -229,37 +219,23 @@ class PositionalEmbedding(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    """
-    Bidirectional Encoder = Transformer (self-attention)
-    Transformer = MultiHead_Attention + Feed_Forward with sublayer connection
-    """
-
     def __init__(self, hidden, attn_heads, feed_forward_hidden, dropout):
-        """
-        :param hidden: hidden size of transformer
-        :param attn_heads: head sizes of multi-head attention
-        :param feed_forward_hidden: feed_forward_hidden, usually 4*hidden_size
-        :param dropout: dropout rate
-        """
-
         super().__init__()
         self.attention = MultiHeadedAttention(h=attn_heads, d_model=hidden, dropout=dropout)
+        self.attention_sublayer = SublayerConnection(size=hidden, dropout=dropout)
         self.feed_forward = PositionwiseFeedForward(d_model=hidden, d_ff=feed_forward_hidden, dropout=dropout)
-        self.input_sublayer = SublayerConnection(size=hidden, dropout=dropout)
-        self.output_sublayer = SublayerConnection(size=hidden, dropout=dropout)
+        self.feed_forward_sublayer = SublayerConnection(size=hidden, dropout=dropout)
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x, mask):
-        x = self.input_sublayer(x, lambda _x: self.attention.forward(_x, _x, _x, mask=mask))
-        x = self.output_sublayer(x, self.feed_forward)
+        # self-attention -> dropout -> residual -> layer normalization
+        x = self.attention_sublayer(x, lambda _x: self.attention.forward(_x, _x, _x, mask=mask))
+        # position-wise feed_forward -> dropout -> residual -> layer normalization
+        x = self.feed_forward_sublayer(x, self.feed_forward)
         return self.dropout(x)
 
 
 class MultiHeadedAttention(nn.Module):
-    """
-    Take in model size and number of heads.
-    """
-
     def __init__(self, h, d_model, dropout=0.1):
         super().__init__()
         assert d_model % h == 0
@@ -346,7 +322,7 @@ class SublayerConnection(nn.Module):
 
     def forward(self, x, sublayer):
         "Apply residual connection to any sublayer with the same size."
-        return x + self.dropout(sublayer(self.norm(x)))
+        return self.norm(x + self.dropout(sublayer(x)))
 
 
 class LayerNorm(nn.Module):

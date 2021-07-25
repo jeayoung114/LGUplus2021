@@ -53,7 +53,7 @@ print(device)
 seed_everything(seed)
 start = time.time()  # 시작 시간 저장
 TransRec = TransRec_sequential(user_train, user_valid, user_num=usernum, item_num=itemnum, emb_dim=20, maxlen=1,
-                               num_epochs=100, eval_every=1, early_stop_trial=3, learning_rate=0.001, reg_lambda=0.0, batch_size=128, device=device)
+                               num_epochs=100, eval_every=10, early_stop_trial=3, learning_rate=0.001, reg_lambda=0.0, batch_size=128, device=device)
 TransRec.fit()
 TransRec_ndcg, TransRec_recall = eval_sequential(TransRec, user_train, user_valid, user_test, usernum, itemnum, top_k, mode='test')
 print(f"[TransRec]\t Test_Recall@{top_k} = {TransRec_recall:.4f} Test_NDCG@{top_k} = {TransRec_ndcg:.4f}")
@@ -89,5 +89,6 @@ print("time 분 :", (time.time() - start)/60.0)
 print("======================================")
 
 
+print(f"[TransRec]\t Test_Recall@{top_k} = {TransRec_recall:.4f} Test_NDCG@{top_k} = {TransRec_ndcg:.4f}")
 print(f"[SASRec]\t Test_Recall@{top_k} = {SASRec_recall:.4f} Test_NDCG@{top_k} = {SASRec_ndcg:.4f}")
 print(f"[BERTRec]\t Test_Recall@{top_k} = {BERTRec_recall:.4f} Test_NDCG@{top_k} = {BERTRec_ndcg:.4f}")

@@ -19,6 +19,7 @@ sys.path.append("..")
 
 # https://github.com/pmixer/SASRec.pytorch 을 참고했습니다.
 
+
 class SASRec_sequential(torch.nn.Module):
     def __init__(self, user_train, user_valid, user_num, item_num, hidden_dim, maxlen, num_blocks, num_heads,
                  num_epochs, eval_every, early_stop_trial, learning_rate, reg_lambda, batch_size, device):
@@ -45,29 +46,36 @@ class SASRec_sequential(torch.nn.Module):
         self.build_graph()
 
     def build_graph(self):
+        # 항목 임베딩
         self.item_emb = torch.nn.Embedding(self.item_num+1, self.hidden_dim, padding_idx=0)
+        # 위치 임베딩
         self.pos_emb = torch.nn.Embedding(self.maxlen, self.hidden_dim)
         self.emb_dropout = torch.nn.Dropout(p=0.2)
 
-        self.attention_layernorms = torch.nn.ModuleList()  # to be Q for self-attention
+        # Self-Attention Layer를 위한 계층 선언
+        self.attention_layernorms = torch.nn.ModuleList()
         self.attention_layers = torch.nn.ModuleList()
+        # Position-wise Feed-Forward Layer를 위한 계층 선언
         self.forward_layernorms = torch.nn.ModuleList()
         self.forward_layers = torch.nn.ModuleList()
 
-        self.last_layernorm = torch.nn.LayerNorm(self.hidden_dim, eps=1e-8)
+        self.last_layernorm = torch.nn.LayerNorm(self.hidden_dim)
 
+        # Self-Attention block 구성
         for _ in range(self.num_blocks):
-            new_attn_layernorm = torch.nn.LayerNorm(self.hidden_dim, eps=1e-8)
+            # layer normalization layer (self-attention)
+            new_attn_layernorm = torch.nn.LayerNorm(self.hidden_dim)
             self.attention_layernorms.append(new_attn_layernorm)
 
-            new_attn_layer = torch.nn.MultiheadAttention(self.hidden_dim,
-                                                         self.num_heads,
-                                                         0.2)
+            # self-attention layer
+            new_attn_layer = torch.nn.MultiheadAttention(self.hidden_dim, self.num_heads, 0.2)
             self.attention_layers.append(new_attn_layer)
 
-            new_fwd_layernorm = torch.nn.LayerNorm(self.hidden_dim, eps=1e-8)
+            # layer norm layer (position-wise feed-forward)
+            new_fwd_layernorm = torch.nn.LayerNorm(self.hidden_dim)
             self.forward_layernorms.append(new_fwd_layernorm)
 
+            # position-wise feed-forward layer
             new_fwd_layer = PointWiseFeedForward(self.hidden_dim, 0.2)
             self.forward_layers.append(new_fwd_layer)
 
@@ -80,47 +88,51 @@ class SASRec_sequential(torch.nn.Module):
         self.to(self.device)
 
     def forward(self, log_seqs, pos_seqs=None, neg_seqs=None, item_indices=None):
+        # 항목 임베딩 (batch, maxlen -> batch, maxlen, hidden_dim)
         seqs = self.item_emb(log_seqs)
-        seqs *= self.item_emb.embedding_dim ** 0.5
         positions = np.tile(np.array(range(log_seqs.shape[1])), [log_seqs.shape[0], 1])
         seqs += self.pos_emb(torch.LongTensor(positions).to(self.device))
         seqs = self.emb_dropout(seqs)
 
-        timeline_mask = log_seqs == 0
+        # padding 인 부분에 대해서 값을 0으로 설정
+        timeline_mask = (log_seqs == 0)
         seqs *= ~timeline_mask.unsqueeze(-1)  # broadcast in last dim
 
-        tl = seqs.shape[1]  # time dim len for enforce causality
+        # 현재 항목 기준, 이후 항목에 대한 가중치를 없애기 위한 마스크
+        tl = seqs.shape[1]
         attention_mask = ~torch.tril(torch.ones((tl, tl), dtype=torch.bool, device=self.device))
 
+        # Self-attention block
         for i in range(len(self.attention_layers)):
             seqs = torch.transpose(seqs, 0, 1)
+            # layer normalization
             Q = self.attention_layernorms[i](seqs)
-            mha_outputs, _ = self.attention_layers[i](Q, seqs, seqs,
-                                                      attn_mask=attention_mask)
-            # key_padding_mask=timeline_mask
-            # need_weights=False) this arg do not work?
+            # self-attention
+            mha_outputs, _ = self.attention_layers[i](Q, seqs, seqs, attn_mask=attention_mask)
+            # residual connection
             seqs = Q + mha_outputs
             seqs = torch.transpose(seqs, 0, 1)
 
+            # layer normalization
             seqs = self.forward_layernorms[i](seqs)
-            seqs = self.forward_layers[i](seqs)
+            # position-wise feed-forward
+            seqs += self.forward_layers[i](seqs)
             seqs *= ~timeline_mask.unsqueeze(-1)
 
-        log_feats = self.last_layernorm(seqs)  # (U, T, C) -> (U, -1, C)
-
+        # (batch, maxlen, hidden_dim)
+        log_feats = self.last_layernorm(seqs)
         if pos_seqs is not None:
             pos_embs = self.item_emb(pos_seqs)
             pos_logits = (log_feats * pos_embs).sum(dim=-1)
             neg_embs = self.item_emb(neg_seqs)
             neg_logits = (log_feats * neg_embs).sum(dim=-1)
-
             return pos_logits, neg_logits
 
         if item_indices is not None:
-            item_embs = self.item_emb(item_indices)  # (U, I, C)
-            final_feat = log_feats[:, -1, :]  # only use last QKV classifier, a waste
+            # 마지막 item의 벡터만 활용 (batch, hidden_dim)
+            final_feat = log_feats[:, -1, :]
+            item_embs = self.item_emb(item_indices)
             logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)
-
             return logits
 
     def fit(self):
@@ -191,7 +203,9 @@ class SASRec_sequential(torch.nn.Module):
     def predict(self, users, log_seqs, item_indices):
         self.eval()
         with torch.no_grad():
+            log_seqs += log_seqs.astype(np.bool).astype(np.long)  # 0 부터 시작 -> 1부터 시작
             log_seqs = torch.LongTensor(log_seqs).to(self.device)
+            item_indices += item_indices.astype(np.bool).astype(np.long)  # 0 부터 시작 -> 1부터 시작
             item_indices = torch.LongTensor(item_indices).to(self.device)
             logits = self.forward(log_seqs, item_indices=item_indices)
 
@@ -264,8 +278,8 @@ def sample_function(user_train, usernum, itemnum, batch_size, maxlen, result_que
 
         ts = set(user_train[user])
         for i in reversed(user_train[user][:-1]):
-            seq[idx] = i
-            pos[idx] = nxt
+            seq[idx] = i + 1  # 0부터 시작 -> 1부터 시작
+            pos[idx] = nxt + 1  # 0부터 시작 -> 1부터 시작
             if nxt != 0:
                 neg[idx] = random_neq(1, itemnum + 1, ts)
             nxt = i
