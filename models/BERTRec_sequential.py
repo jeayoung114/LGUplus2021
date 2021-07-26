@@ -71,7 +71,8 @@ class BERTRec_sequential(torch.nn.Module):
     def fit(self):
         train_loader = DataLoader(list(self.user_train.keys()), batch_size=self.batch_size, shuffle=True)
 
-        best_ndcg = 0
+        top_k = 20
+        best_recall = 0
         num_trials = 0
         for epoch in range(1, self.num_epochs+1):
             # Train
@@ -97,10 +98,10 @@ class BERTRec_sequential(torch.nn.Module):
             # Valid
             if epoch % self.eval_every == 0:
                 self.eval()
-                ndcg, recall = eval_sequential(self, self.user_train, self.user_valid, None, self.user_num, self.item_num, top_k=100, mode='valid')
+                ndcg, recall = eval_sequential(self, self.user_train, self.user_valid, None, self.user_num, self.item_num, top_k=20, mode='valid')
 
-                if ndcg > best_ndcg:
-                    best_ndcg = ndcg
+                if recall > best_recall:
+                    best_recall = recall
                     torch.save(self.state_dict(), f"saves/{self.__class__.__name__}_best_model.pt")
                     num_trials = 0
                 else:
@@ -111,7 +112,7 @@ class BERTRec_sequential(torch.nn.Module):
                     self.restore()
                     break
 
-                print(f'epoch {epoch} train_loss = {loss:.4f} valid_recall@100 = {recall:.4f} valid_ndcg@100 = {ndcg:.4f}')
+                print(f'epoch {epoch} train_loss = {loss:.4f} valid_recall@{top_k} = {recall:.4f} valid_ndcg@{top_k} = {ndcg:.4f}')
             else:
                 print(f'epoch {epoch} train_loss = {loss:.4f}')
         return
